@@ -292,7 +292,7 @@
   <div class="start-box">
     <label>选择人数（你 + AI）</label>
     <div class="pcount" id="pcountRow"></div>
-    <label>拓展包《危情》（威逼/利诱·双色情报·双面间谍）</label>
+    <label>拓展包（点亮启用，可多选）</label>
     <div class="pcount fpick" id="expRow"></div>
     <label>选择身份</label>
     <div class="pcount fpick" id="fpickRow"></div>
@@ -350,6 +350,8 @@
        若无人接收，情报回到传出者面前，由传出者收下。</p>
     <p><b class="rule-k">功能牌</b>：<b>截获</b>——他人即将收下情报时，改为由你收下；<b>破译</b>——面朝下的情报传到你面前时偷看它；<b>误导</b>——把传到你面前的情报改传给你的左右邻座；<b>调包</b>——弃此牌，从手牌任选一张换入传递，原来传递中的情报收入你的手牌；<b>烧毁</b>——出牌阶段烧掉任意玩家情报区的一张黑色情报；<b>试探</b>——出牌阶段指定一名玩家，其须按真实身份执行牌上指令；<b>平信</b>——无功能，仅作情报。</p>
     <p><b class="rule-k">拓展包《危情》</b>（可选）：牌库加入【威逼】（迫使一名玩家交给你一张手牌）、【利诱】（展示牌库顶两张，目标先选一张、你得另一张）与六张<b>双色情报</b>——双色牌同时计入两种颜色（红黑既算红也算黑！）；酱油任务池新增「双面间谍」（红蓝各集两张）。</p>
+    <p><b class="rule-k">拓展包《绝密行动》</b>（可选）：强化打酱油——任务池新增「纵火狂」（累计烧毁三张黑情报）、「劫收专员」（靠【截获】收下两张情报）、「完美中立」（第六轮结束时存活且无红蓝情报）；每名酱油开局获得一条「耳目密报」，得知一名玩家的真实身份。</p>
+    <p><b class="rule-k">拓展包《绝密档案》</b>（可选）：角色池加入八位新角色——报童（号外）、裁缝（量体）、车夫（快马）、灰狐（匿影）、药剂师（解毒）、守夜人（守灵）、情妇（枕风）、老会计（清账）。</p>
     <p><b class="rule-k">暗置角色</b>：每人一张角色牌，部分角色开局暗置（他人只见座位代号）。暗置技能首次触发时当众翻开，并摸一张牌。公开角色（顾晓梦、金生火、王田香、柒佰、老枪、小翠）开局即亮明。</p>
     <p><b class="rule-k">提示</b>：情报区的牌对所有人公开。传出情报前想清楚：这张牌的颜色、传给谁、走哪个方向，都会暴露你的立场。点击任意座位可查看你已掌握的线索与推测。</p>
     <p style="color:#6b6558;font-size:11px">网页版为适配单机对 AI 而对原桌游细节有少量简化（角色技能取自其中一部分，文本/密电方向可自选）。</p>
@@ -432,6 +434,17 @@ const CHARS = [
   { key:"bashu",       name:"疤叔",   covert:true,  skill:"遗言：你死亡时，可以把情报区一张非黑色情报移交给任意一名玩家。" },
   { key:"yingzi",      name:"影子",   covert:true,  skill:"尾随：每回合限一次，你的邻座收下情报后，你摸一张牌。" },
 ];
+/* 《绝密档案》拓展角色 */
+const ARCHIVE_CHARS = [
+  { key:"baotong",   name:"报童",   covert:false, skill:"号外：每回合限一次，明置传递的情报被收下后，你摸一张牌。" },
+  { key:"caifeng",   name:"裁缝",   covert:false, skill:"量体：你的摸牌阶段，可以改为从弃牌堆中挑选两张牌。" },
+  { key:"kuaima",    name:"车夫",   covert:false, skill:"快马：你传出的【直达】情报被其他玩家收下时，你摸一张牌。" },
+  { key:"huihu",     name:"灰狐",   covert:true,  skill:"匿影：每回合限一次，你拒收暗置情报后，摸一张牌。" },
+  { key:"yaojishi",  name:"药剂师", covert:true,  skill:"解毒：每局限两次，你收到黑色情报时，可弃两张手牌将其销毁。" },
+  { key:"shouyeren", name:"守夜人", covert:true,  skill:"守灵：每当其他玩家死亡，你摸两张牌。" },
+  { key:"qingfu",    name:"情妇",   covert:true,  skill:"枕风：有人对你使用【试探】结算后，其须展示一张随机手牌。" },
+  { key:"laokuaiji", name:"老会计", covert:true,  skill:"清账：你死亡时，指定一名玩家弃置两张手牌。" },
+];
 const CODENAMES = ["夜莺","灰鸽","青瓷","白狐","寒鸦","孤雁","竹影","老刀"];
 
 const MISSIONS = [
@@ -441,6 +454,11 @@ const MISSIONS = [
 ];
 const EXP_MISSIONS = [
   { key:"double",   name:"双面间谍", desc:"你的情报区红色与蓝色情报各至少两张时，你单独获胜。" },
+];
+const ACTION_MISSIONS = [
+  { key:"arsonist", name:"纵火狂",   desc:"你累计烧毁三张黑色情报时，你单独获胜。" },
+  { key:"grabber",  name:"劫收专员", desc:"你通过【截获】收下的情报累计达两张时，你单独获胜。" },
+  { key:"neutral",  name:"完美中立", desc:"第六轮结束时，你存活且情报区没有任何红色或蓝色情报，你单独获胜。" },
 ];
 
 function factionSetup(n){
@@ -525,13 +543,14 @@ function buildDeck(expansion){
 let G = null;
 
 function newGame(n, wantFaction, expansion){
+  const ex = (expansion && typeof expansion==="object")? expansion : {weiqing:!!expansion};
   const facs = shuffle(factionSetup(n).slice());
   if(wantFaction){
     const k = facs.indexOf(wantFaction);            // 各人数配置下三阵营均至少 1 名
     if(k>0) [facs[0],facs[k]]=[facs[k],facs[0]];
   }
-  const missionPool = expansion? MISSIONS.concat(EXP_MISSIONS) : MISSIONS;
-  const chars = shuffle(CHARS.slice()).slice(0,n);
+  const missionPool = MISSIONS.concat(ex.weiqing?EXP_MISSIONS:[], ex.action?ACTION_MISSIONS:[]);
+  const chars = shuffle((ex.archive? CHARS.concat(ARCHIVE_CHARS) : CHARS).slice()).slice(0,n);
   const codes = shuffle(CODENAMES.slice());
   const players = [];
   for(let i=0;i<n;i++){
@@ -546,12 +565,12 @@ function newGame(n, wantFaction, expansion){
       hand:[], intel:[], alive:true, revealed:false,
       hint:null,          // 被试探公开暴露的身份线索："QF"/"JQ"/"JY"
       turnUsed:{},        // 每回合限用技能记录
-      laoguiUsed:false,
+      laoguiUsed:false, yjsUses:0, burnCount:0, grabCount:0, privateHint:null,
     });
   }
   G = {
-    n, players, expansion: !!expansion,
-    deck: buildDeck(expansion), discard: [],
+    n, players, expansion: !!ex.weiqing, exp: ex,
+    deck: buildDeck(ex.weiqing), discard: [],
     turn: 0, round: 0, over:false,
     transit: null, transitSeq: 0,
     winners: [], winText:"",
@@ -560,6 +579,16 @@ function newGame(n, wantFaction, expansion){
     humanClues: [],  // 真人私有情报（破译所得等）：{targetI, text}
   };
   G.totalCards = G.deck.length;
+  // 绝密行动·耳目：每名酱油开局得知一名玩家的真实身份
+  if(ex.action){
+    for(const p of players){
+      if(p.faction==="JY"){
+        const t=rnd(players.filter(x=>x!==p));
+        p.privateHint={targetI:t.i, faction:t.faction};
+        if(p.human) G.humanClues.push({targetI:t.i, text:`耳目密报：${t.name} 的身份是【${FACTION_NAME[t.faction]}】`});
+      }
+    }
+  }
   players.forEach(p=>drawCards(p,3,true));
 }
 
@@ -665,7 +694,8 @@ function factionBadge(p, forceReveal){
 }
 function render(){
   if(!G) return;
-  $("#deckInfo").textContent = `${G.expansion?"危情拓展 · ":""}牌库 ${G.deck.length} · 弃牌 ${G.discard.length} · 第 ${G.round} 轮`;
+  const packs=[G.exp&&G.exp.weiqing?"危情":null, G.exp&&G.exp.action?"绝密行动":null, G.exp&&G.exp.archive?"绝密档案":null].filter(Boolean).join("+");
+  $("#deckInfo").textContent = `${packs? packs+" · ":""}牌库 ${G.deck.length} · 弃牌 ${G.discard.length} · 第 ${G.round} 轮`;
   // 阵营配置：总数公开；死亡会亮身份，故按阵营灰显出局者
   let fb="";
   for(const f of ["QF","JQ","JY"]){
@@ -964,6 +994,10 @@ async function runGame(){
     if(p.alive){
       if(G.turn<=lastTurnIdx) G.round++; // 座位序回绕视为新一轮（0号位死亡也照常计轮）
       lastTurnIdx=G.turn;
+      if(G.round===7 && !G.over){
+        checkNeutralWin();
+        if(G.over) break;
+      }
       await doTurn(p);
       const cs=cardCensus();
       if(cs.total!==cs.expect || cs.dup>0){
@@ -989,7 +1023,33 @@ async function doTurn(p){
 
   // 摸牌
   const k = p.char.key==="guxiaomeng" ? 3 : 2;
-  drawCards(p,k);
+  let drew=false;
+  if(p.char.key==="caifeng" && G.discard.length>=2){
+    let use=false, picks=[];
+    if(p.human){
+      use = await ask("技能·量体：改为从弃牌堆挑选两张牌？",
+        [{label:"发动（挑两张）",value:true},{label:"正常摸牌",value:false}]);
+      if(use){
+        for(let i=0;i<2;i++){
+          const opts=G.discard.slice(-12).reverse().filter(c=>!picks.includes(c))
+            .map(c=>({label:`${cardColorLabel(c)}·${FN_NAME[c.fn]}`,value:c}));
+          picks.push(await ask(`量体：挑选第 ${i+1} 张（弃牌堆最近的牌）：`,opts));
+        }
+      }
+    } else {
+      const score=c=> (cardHasColor(c,"black")?-2:0)
+        + (ownColor(p)&&cardHasColor(c,ownColor(p))?2:0)
+        + (["jiehuo","poyi","shaohui"].includes(c.fn)?1:0);
+      const sorted=G.discard.slice().sort((a,b)=>score(b)-score(a));
+      if(score(sorted[0])+score(sorted[1])>=2){ use=true; picks=[sorted[0],sorted[1]]; }
+    }
+    if(use && picks.length===2){
+      picks.forEach(c=>{ G.discard.splice(G.discard.indexOf(c),1); p.hand.push(c); });
+      log(`${pname(p)} 发动【量体】，从弃牌堆挑走两张牌。`,"hl");
+      render(); drew=true;
+    }
+  }
+  if(!drew) drawCards(p,k);
   await sleep(400);
   if(G.over) return;
 
@@ -1059,7 +1119,9 @@ async function aiPlayPhaseStep(p, usableCards, canSkill){
   const burnTargets = G.players.filter(q=>q.alive && countColor(q,"black")>0);
   if((shao||canSkill) && burnTargets.length){
     let target=null;
-    if(!martyr && countColor(p,"black")>0) target=p;
+    if(p.faction==="JY" && p.mission.key==="arsonist")
+      target = burnTargets.slice().sort((a,b)=>countColor(b,"black")-countColor(a,"black"))[0];
+    else if(!martyr && countColor(p,"black")>0) target=p;
     else {
       const allyT = burnTargets.filter(q=>q!==p && aiIsLikelyAlly(p,q) && !(q.faction==="JY"))
                                .sort((a,b)=>countColor(b,"black")-countColor(a,"black"))[0];
@@ -1201,6 +1263,10 @@ async function burnBlack(actor, t){
   log(`${t===G.players[0]&&t.human?"你":t.name} 情报区的一张黑色情报被烧毁。`,"good");
   evt({type:"burn", actor:actor.i, targetI:t.i});
   rep(`${actor.name} 烧毁了 ${actor===t?"自己":t.name} 的黑色情报`,"good");
+  actor.burnCount++;
+  if(actor.alive && actor.faction==="JY" && actor.mission && actor.mission.key==="arsonist" && actor.burnCount>=3){
+    endGame([actor], `${actor.name} 烧毁了第三张黑色情报——纵火狂任务完成，单独获胜！`);
+  }
   render();
   await sleep(400);
 }
@@ -1287,6 +1353,16 @@ async function probeOne(p, card, t){
       t.hint=fac;
     } else {
       log(`${pname(t)} 没有反应（不是${FACTION_NAME[fac]}）。`);
+    }
+  }
+  // 情妇·枕风：被试探后反制
+  if(t.char.key==="qingfu" && t.alive){
+    revealChar(t);
+    if(p.hand.length){
+      const sc=rnd(p.hand);
+      log(`${pname(t)} 发动【枕风】：${pname(p)} 被迫展示手牌 ${cardColorLabel(sc)}·${FN_NAME[sc.fn]}。`,"warn");
+    } else {
+      log(`${pname(t)} 发动【枕风】，但 ${pname(p)} 没有手牌可展示。`);
     }
   }
 }
@@ -1458,6 +1534,17 @@ async function continueAfterRedirect(target, restOrder, isZhida){
   return null;
 }
 
+/* 灰狐·匿影：拒收暗置情报摸一张（每回合一次） */
+function huihuTrigger(q){
+  const tr=G.transit;
+  if(tr && !tr.faceUp && q.char.key==="huihu" && !q.turnUsed.hf && q.alive){
+    q.turnUsed.hf=true;
+    revealChar(q);
+    log(`${pname(q)} 发动【匿影】（拒收暗置情报），摸一张牌。`,"good");
+    drawCards(q,1);
+  }
+}
+
 /* 情报到某人面前：可用 破译/调包/误导，然后决定接收与否 */
 async function offerAt(q, isZhida){
   const tr=G.transit;
@@ -1489,6 +1576,7 @@ async function offerAt(q, isZhida){
       if(act==="pass"){
         if(tr.faceUp) evt({type:"declined", who:q.i, color:evtColor(tr.card)});
         rep(`${q.name} ${isZhida?"退回":"没有接收"}（${tr.faceUp?"明置":"暗置"}）`);
+        huihuTrigger(q);
         return "pass";
       }
       if(act==="poyi"){
@@ -1550,6 +1638,7 @@ async function offerAt(q, isZhida){
       if(d==="pass"){
         if(tr.faceUp) evt({type:"declined", who:q.i, color:evtColor(tr.card)});
         rep(`${q.name} ${isZhida?"退回":"没有接收"}（${tr.faceUp?"明置":"暗置"}${tr.knownTo.has(q.i)&&!tr.faceUp?"·已偷看":""}）`);
+        huihuTrigger(q);
       }
       if(d==="accept") rep(`${q.name} 决定接收`);
       if(d!=="again") return d;
@@ -1595,6 +1684,7 @@ async function aiOffer(q, isZhida){
   const collector = q.faction==="JY" && q.mission.key==="collect3";
   const hoarder = q.faction==="JY" && q.mission.key==="hoarder";
   const dbl = q.faction==="JY" && q.mission.key==="double";
+  const neutralM = q.faction==="JY" && q.mission.key==="neutral";
 
   // 想偷看吗
   if(!known && !tr.faceUp){
@@ -1610,6 +1700,7 @@ async function aiOffer(q, isZhida){
   }
 
   // 已知颜色的决策
+  if(neutralM) return "pass";   // 完美中立：任何情报都不收
   if(known){
     if(known==="black"){
       if(martyr && (G.round>=3 || myBlacks<2) && Math.random()<0.85) return "accept";
@@ -1700,6 +1791,7 @@ async function interceptWindow(receiver){
     }
     if(!intercepted || !jc) break;
     discardFromHand(intercepted,jc);
+    tr.lastInterceptorI=intercepted.i;
     log(`${pname(intercepted)} 使用【截获】——情报改由其收下！`,"warn");
     evt({type:"intercept", actor:intercepted.i, color:evtColor(tr.card), victimI:cur.i,
          denial: !tr.card.color2 && tr.card.color!=="black"
@@ -1728,6 +1820,10 @@ function aiWantIntercept(q, receiver){
   const kc = knownCardTo(q);
   const known = kc? aiColorRead(q,kc) : null;
   const oc=ownColor(q);
+  if(q.faction==="JY" && q.mission.key==="grabber" && countColor(q,"black")<2){
+    if(known && known!=="black") return Math.random()<0.8;
+    if(!known) return Math.random()<0.35;
+  }
   const martyr = q.faction==="JY" && q.mission.key==="martyr";
   if(known){
     if(known==="black") return martyr && (G.round>=3 || countColor(q,"black")<2) && Math.random()<0.7;
@@ -1767,6 +1863,30 @@ async function gainIntel(p, card){
   render();
   await sleep(500);
 
+  // 药剂师·解毒：弃两张手牌销毁黑色情报（每局两次）
+  if(cardHasColor(card,"black") && p.char.key==="yaojishi" && p.yjsUses<2 && p.hand.length>=2 && p.alive){
+    let use;
+    const isMartyr = p.faction==="JY" && p.mission && p.mission.key==="martyr";
+    if(p.human){
+      use = await ask(`技能·解毒：弃两张手牌销毁这张黑色情报？（剩余 ${2-p.yjsUses} 次）`,
+        [{label:"发动",value:true},{label:"不发动",value:false}]);
+    } else use = !isMartyr && countColor(p,"black")>=2;
+    if(use){
+      p.yjsUses++;
+      revealChar(p);
+      for(let i=0;i<2;i++){
+        let dc;
+        if(p.human){ apMsg(`解毒：选择弃置第 ${i+1} 张手牌…`); dc=await pickHandCard(); clearAsk(); }
+        else dc=p.hand.slice().sort((a,b)=>costPreference(p,a)-costPreference(p,b))[0];
+        discardFromHand(p,dc);
+      }
+      const bi=p.intel.indexOf(card);
+      if(bi>=0){ p.intel.splice(bi,1); G.discard.push(card); }
+      log(`${pname(p)} 发动【解毒】，弃两张手牌销毁了这张${cardColorLabel(card)}情报。`,"good");
+      rep(`${p.name} 解毒：销毁${cardColorLabel(card)}情报`);
+      render();
+    }
+  }
   // 老鬼·迷踪：第二张黑色情报可弃掉（每局一次）
   if(cardHasColor(card,"black") && p.char.key==="laogui" && !p.laoguiUsed && countColor(p,"black")===2){
     let use;
@@ -1800,6 +1920,28 @@ async function gainIntel(p, card){
     log(`${pname(p)} 发动【转念】，摸两张牌。`,"good");
     drawCards(p,2);
   }
+  // 报童·号外：明置情报被收下（每回合一次）
+  if(tr && tr.faceUp){
+    for(const q of alivePlayers()){
+      if(q.char.key==="baotong" && !q.turnUsed.bt){
+        q.turnUsed.bt=true;
+        log(`${pname(q)} 发动【号外】（明置情报被收下），摸一张牌。`,"good");
+        drawCards(q,1);
+      }
+    }
+  }
+  // 车夫·快马：传出的直达被他人收下
+  if(tr && tr.mode==="zhida" && tr.tamperedBy==null && p.i!==tr.sender){
+    const sd=G.players[tr.sender];
+    if(sd.alive && sd.char.key==="kuaima"){
+      log(`${pname(sd)} 发动【快马】（直达情报送达），摸一张牌。`,"good");
+      drawCards(sd,1);
+    }
+  }
+  // 劫收专员：统计经由截获收下的情报
+  if(tr && tr.lastInterceptorI===p.i){
+    p.grabCount++;
+  }
   // 影子·尾随：邻座收下情报（每回合一次）
   for(const q of adjAlive(p)){
     if(q.char.key==="yingzi" && q.alive && !q.turnUsed.shadow){
@@ -1821,6 +1963,15 @@ async function gainIntel(p, card){
   }
 }
 
+function checkNeutralWin(){
+  for(const j of alivePlayers()){
+    if(j.faction==="JY" && j.mission && j.mission.key==="neutral"
+       && countColor(j,"red")===0 && countColor(j,"blue")===0){
+      endGame([j], `${j.name} 熬过六轮仍两袖清风——完美中立任务完成，单独获胜！`);
+      return;
+    }
+  }
+}
 function checkWinAfterGain(p){
   if(p.faction==="QF" && countColor(p,"red")>=3){
     endGame(G.players.filter(x=>x.faction==="QF"), `${p.name} 集齐三张红色情报——潜伏战线获胜！`);
@@ -1837,6 +1988,10 @@ function checkWinAfterGain(p){
     }
     if(p.mission.key==="hoarder" && p.intel.length>=4 && countColor(p,"black")<3){
       endGame([p], `${p.name} 情报区攒下四张情报——机密任务完成，单独获胜！`);
+      return;
+    }
+    if(p.mission.key==="grabber" && p.grabCount>=2){
+      endGame([p], `${p.name} 第二次靠【截获】劫下情报——劫收专员任务完成，单独获胜！`);
       return;
     }
     if(p.mission.key==="double" && countColor(p,"red")>=2 && countColor(p,"blue")>=2){
@@ -1877,6 +2032,39 @@ async function killPlayer(p){
       rep(`${p.name} 遗言：${COLOR_NAME[gift.color]}情报 移交 ${t.name}`);
       render();
       checkWinAfterGain(t);
+    }
+  }
+  // 守夜人·守灵：有玩家死亡则摸两张
+  if(!G.over){
+    for(const q of alivePlayers()){
+      if(q!==p && q.char.key==="shouyeren"){
+        revealChar(q);
+        log(`${pname(q)} 发动【守灵】（有玩家死亡），摸两张牌。`,"good");
+        drawCards(q,2);
+      }
+    }
+  }
+  // 老会计·清账：死亡时指定一人弃两张手牌
+  if(!G.over && p.char.key==="laokuaiji"){
+    const cands=alivePlayers().filter(q=>q!==p && q.hand.length>0);
+    let t=null;
+    if(cands.length){
+      if(p.human){
+        t=await ask("技能·清账：指定谁弃置两张手牌？",
+          [...cands.map(q=>({label:q.name,value:q})), {label:"放弃",value:null,warn:true}]);
+      } else {
+        t=cands.slice().sort((a,b)=>hostility(b,p)-hostility(a,p))[0];
+      }
+    }
+    if(t){
+      log(`${pname(p)} 发动【清账】，${pname(t)} 须弃置两张手牌。`,"warn");
+      rep(`${p.name} 清账 → ${t.name} 弃两张手牌`);
+      for(let i=0;i<2 && t.hand.length;i++){
+        let dc;
+        if(t.human){ apMsg(`清账：选择弃置第 ${i+1} 张手牌…`); dc=await pickHandCard(); clearAsk(); }
+        else dc=t.hand.slice().sort((a,b)=>costPreference(t,a)-costPreference(t,b))[0];
+        discardFromHand(t,dc);
+      }
     }
   }
   G.discard.push(...p.hand.splice(0), ...p.intel.splice(0));
@@ -1925,7 +2113,8 @@ function endGame(winners, text){
 }
 
 /* ---------- 入口/界面接线 ---------- */
-let chosenN = 6, chosenFaction = null, chosenExpansion = false;
+let chosenN = 6, chosenFaction = null;
+const chosenExp = { weiqing:false, action:false, archive:false };
 function initStart(){
   const row=$("#pcountRow");
   [4,5,6,7,8].forEach(n=>{
@@ -1936,11 +2125,10 @@ function initStart(){
     row.appendChild(b);
   });
   const erow=$("#expRow");
-  [[false,"关闭"],[true,"开启"]].forEach(([v,label])=>{
+  [["weiqing","危情"],["action","绝密行动"],["archive","绝密档案"]].forEach(([k,label])=>{
     const b=document.createElement("button");
     b.textContent=label;
-    if(v===chosenExpansion) b.classList.add("sel");
-    b.onclick=()=>{ chosenExpansion=v; erow.querySelectorAll("button").forEach(x=>x.classList.remove("sel")); b.classList.add("sel"); };
+    b.onclick=()=>{ chosenExp[k]=!chosenExp[k]; b.classList.toggle("sel",chosenExp[k]); };
     erow.appendChild(b);
   });
   const frow=$("#fpickRow");
@@ -1997,7 +2185,7 @@ function startGame(){
   $("#gameScreen").classList.add("on");
   $("#logBody").innerHTML="";
   $("#myIdentity").innerHTML="";
-  newGame(chosenN, AUTOTEST? null : chosenFaction, chosenExpansion);
+  newGame(chosenN, AUTOTEST? null : chosenFaction, {...chosenExp});
   const me=G.players[0];
   if(me.human){
     let t=`本局你是【${FACTION_NAME[me.faction]}】`;
@@ -2005,6 +2193,10 @@ function startGame(){
     else t+=`，目标：集齐三张${me.faction==="QF"?"红":"蓝"}色情报（小心三张黑色会送命）。`;
     log(t,"turn");
     log(`你的代号是「${me.name}」，角色：${me.char.name}${me.char.covert?"（暗置——技能首次触发时才会公开）":""}——${me.char.skill}`);
+    if(me.faction==="JY" && me.privateHint){
+      const t=G.players[me.privateHint.targetI];
+      log(`耳目密报：${t.name} 的身份是【${FACTION_NAME[me.privateHint.faction]}】。`,"warn");
+    }
   }
   runGame();
 }
@@ -2021,7 +2213,8 @@ if(AUTOTEST){
       $("#logBody").innerHTML="";
       $("#overOverlay").classList.remove("on");
       chosenN = 4+Math.floor(Math.random()*5);
-      newGame(chosenN, null, g%2===1);
+      const combos=[{},{weiqing:true},{action:true,archive:true},{weiqing:true,action:true,archive:true}];
+      newGame(chosenN, null, combos[g%4]);
       await runGame();
       window.__allResults.push(window.__gameResult);
     }

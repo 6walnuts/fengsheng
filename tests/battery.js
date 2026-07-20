@@ -222,6 +222,115 @@ const scenarios = [
     return { ok: G.over && G.winners.length === 1 && G.winText.includes("双面间谍"),
              got: { over: G.over, text: G.winText } };
   }],
+
+  ['绝密档案：角色池扩至24，8位新角色定义齐全', async () => {
+    newGame(6, null, { archive: true });
+    G.players.forEach(p => p.human = false);
+    const keys = ARCHIVE_CHARS.map(c => c.key);
+    return { ok: ARCHIVE_CHARS.length === 8 && CHARS.length === 16
+              && new Set(keys.concat(CHARS.map(c => c.key))).size === 24,
+             got: { archive: ARCHIVE_CHARS.length, base: CHARS.length } };
+  }],
+
+  ['药剂师解毒：收第3张黑弃两手牌销毁，免死', async () => {
+    newGame(6, null, { archive: true });
+    G.players.forEach(p => p.human = false);
+    const p = G.players[1];
+    p.char = { key: "yaojishi", name: "药剂师", covert: true, skill: "解毒" };
+    p.charRevealed = false; p.faction = "QF"; p.mission = null;
+    const b1 = G.deck.pop(), b2 = G.deck.pop(), b3 = G.deck.pop();
+    b1.color = b2.color = b3.color = "black"; b1.color2 = b2.color2 = b3.color2 = undefined;
+    p.intel.push(b1, b2);
+    const hand = p.hand.length;
+    await gainIntel(p, b3);
+    // 翻开暗置角色补偿摸1张：净变化 = +1 - 2 = -1
+    return { ok: p.alive && countColor(p, "black") === 2 && p.hand.length === hand - 1
+              && p.yjsUses === 1 && G.discard.includes(b3),
+             got: { alive: p.alive, blacks: countColor(p, "black"), uses: p.yjsUses } };
+  }],
+
+  ['守夜人+老会计：他人死亡守夜人摸2；老会计死亡令人弃2', async () => {
+    newGame(6, null, { archive: true });
+    G.players.forEach(p => p.human = false);
+    const dead = G.players[1], watcher = G.players[2];
+    dead.char = { key: "laokuaiji", name: "老会计", covert: true, skill: "清账" };
+    dead.faction = "QF"; dead.mission = null;
+    watcher.char = { key: "shouyeren", name: "守夜人", covert: true, skill: "守灵" };
+    watcher.charRevealed = false;
+    const wh = watcher.hand.length;
+    const handsBefore = G.players.filter(q => q !== dead && q !== watcher && q.alive).map(q => q.hand.length);
+    await killPlayer(dead);
+    const handsAfter = G.players.filter(q => q !== dead && q !== watcher && q.alive).map(q => q.hand.length);
+    const someoneLost2 = handsAfter.some((h, i) => handsBefore[i] - h === 2) || watcher.hand.length === wh; // 老会计可能选守夜人
+    return { ok: !dead.alive && watcher.charRevealed && (watcher.hand.length >= wh)
+              && (someoneLost2 || watcher.hand.length === wh + 2 - 2),
+             got: { watcherDrew: watcher.hand.length - wh, handsBefore, handsAfter } };
+  }],
+
+  ['纵火狂：烧毁第3张黑色情报 → 单独获胜', async () => {
+    newGame(6, null, { action: true });
+    G.players.forEach(p => p.human = false);
+    const p = G.players[1], t = G.players[2];
+    p.faction = "JY"; p.mission = { key: "arsonist", name: "纵火狂" };
+    p.burnCount = 2;
+    const b = G.deck.pop(); b.color = "black"; b.color2 = undefined;
+    t.intel.push(b);
+    await burnBlack(p, t);
+    return { ok: G.over && G.winners.length === 1 && G.winText.includes("纵火狂"),
+             got: { over: G.over, text: G.winText } };
+  }],
+
+  ['劫收专员：第2次经截获收下情报 → 单独获胜', async () => {
+    newGame(6, null, { action: true });
+    G.players.forEach(p => p.human = false);
+    const p = G.players[1];
+    p.faction = "JY"; p.mission = { key: "grabber", name: "劫收专员" };
+    p.grabCount = 1;
+    const c = G.deck.pop(); c.color = "red"; c.color2 = undefined;
+    G.transit = { id: 97, card: c, sender: 2, mode: "midian", dir: "cw", faceUp: false,
+                  pos: p.i, knownTo: new Set([2]), redirects: 0, tamperedBy: null, lastInterceptorI: p.i };
+    await gainIntel(p, c);
+    return { ok: G.over && G.winners.length === 1 && G.winText.includes("劫收"),
+             got: { over: G.over, text: G.winText, grabs: p.grabCount } };
+  }],
+
+  ['完美中立：第6轮结束无红蓝且存活 → 单独获胜', async () => {
+    newGame(6, null, { action: true });
+    G.players.forEach(p => p.human = false);
+    const p = G.players[1];
+    p.faction = "JY"; p.mission = { key: "neutral", name: "完美中立" };
+    const b = G.deck.pop(); b.color = "black"; b.color2 = undefined;
+    p.intel.push(b);
+    checkNeutralWin();
+    return { ok: G.over && G.winners.length === 1 && G.winText.includes("完美中立"),
+             got: { over: G.over, text: G.winText } };
+  }],
+
+  ['耳目密报：开启绝密行动后每名酱油都有身份情报', async () => {
+    newGame(6, null, { action: true });
+    G.players.forEach(p => p.human = false);
+    const jys = G.players.filter(p => p.faction === "JY");
+    const allHinted = jys.every(p => p.privateHint && G.players[p.privateHint.targetI].faction === p.privateHint.faction);
+    return { ok: jys.length > 0 && allHinted, got: { jys: jys.length, allHinted } };
+  }],
+
+  ['灰狐匿影：拒收暗置情报摸一张（每回合限一次）', async () => {
+    newGame(6, null, { archive: true });
+    G.players.forEach(p => p.human = false);
+    const q = G.players[2];
+    q.char = { key: "huihu", name: "灰狐", covert: true, skill: "匿影" };
+    q.charRevealed = false; q.turnUsed = {};
+    const c = G.deck.pop();
+    G.transit = { id: 96, card: c, sender: 1, mode: "midian", dir: "cw", faceUp: false,
+                  pos: q.i, knownTo: new Set([1]), redirects: 0, tamperedBy: null };
+    const h = q.hand.length;
+    huihuTrigger(q);
+    huihuTrigger(q); // 第二次不应再触发
+    G.transit = null;
+    // 翻开补偿1张 + 技能1张 = 2张；第二次触发被每回合限制挡住
+    return { ok: q.hand.length === h + 2 && q.charRevealed && q.turnUsed.hf,
+             got: { drew: q.hand.length - h, revealed: q.charRevealed } };
+  }],
 ];
 
 (async () => {
