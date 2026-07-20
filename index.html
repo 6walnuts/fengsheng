@@ -230,6 +230,36 @@
     .seat{width:120px}
     .seat .s-skill{display:none}
   }
+  /* 手机竖屏 */
+  @media (max-width:620px){
+    #topbar{gap:6px;padding:0 8px}
+    #topbar .title{font-size:16px;letter-spacing:.15em}
+    #myIdentity{font-size:11px}
+    #myIdentity .idtail{display:none}
+    #deckInfo,#btnSpeed{display:none}
+    #btnLog{display:inline-block !important}
+    #tableArea{bottom:176px}
+    #bottomDock{height:176px}
+    #actionPanel{min-height:48px;padding:6px 8px;gap:6px}
+    #actionPanel .ap-title{font-size:12px}
+    #actionPanel .ap-sub{font-size:11px}
+    .btn.small{padding:4px 10px;font-size:12px}
+    .card{width:74px;height:100px}
+    .card .cf{font-size:17px;top:34px}
+    .card .cd{font-size:8px}
+    .seat{width:98px;padding:4px 6px}
+    .seat .s-name .nm{font-size:13px}
+    .seat .s-hand{font-size:10px}
+    .badge{font-size:9px;padding:0 3px}
+    .chip{width:11px;height:15px}
+    #centerInfo{width:150px;font-size:11px}
+    #centerInfo .phase{font-size:12px}
+  }
+  /* 移动端日志抽屉 */
+  #logPanel.mobile-open{
+    display:flex;position:fixed;top:44px;right:0;bottom:0;left:auto;
+    width:min(85vw,300px);z-index:45;box-shadow:-8px 0 24px rgba(0,0,0,.5);
+  }
 </style>
 </head>
 <body>
@@ -255,6 +285,7 @@
     <div id="myIdentity"></div>
     <div class="spacer"></div>
     <div id="deckInfo"></div>
+    <button class="btn small" id="btnLog" style="display:none">记录</button>
     <button class="btn small" id="btnSpeed">速度：正常</button>
     <button class="btn small" id="btnHelp">规则</button>
     <button class="btn small warn" id="btnRestart">重开</button>
@@ -535,7 +566,11 @@ function seatPos(idx){
   const W = area.clientWidth, H = area.clientHeight;
   const cx=W/2, cy=H/2, rx=Math.min(W*0.40, 430), ry=Math.min(H*0.40, 215);
   const ang = Math.PI/2 + (idx/G.n)*Math.PI*2; // idx0 -> 底部
-  return { x: cx + rx*Math.cos(ang), y: cy + ry*Math.sin(ang) };
+  let x = cx + rx*Math.cos(ang), y = cy + ry*Math.sin(ang);
+  const hw = window.innerWidth<=620? 52 : 78;
+  x = Math.max(hw, Math.min(W-hw, x));
+  y = Math.max(46, Math.min(H-50, y));
+  return { x, y };
 }
 function factionBadge(p, forceReveal){
   if(p.human || p.revealed || forceReveal || G.over){
@@ -552,8 +587,8 @@ function render(){
   const me=G.players[0];
   if(me.human){
     let t = `你的身份：${factionBadge(me,true)}`;
-    if(me.faction==="JY") t += ` <span style="color:var(--text-dim);font-size:12px">任务：${me.mission.desc}</span>`;
-    else t += ` <span style="color:var(--text-dim);font-size:12px">集齐3张${me.faction==="QF"?"红":"蓝"}色情报获胜</span>`;
+    if(me.faction==="JY") t += ` <span class="idtail" style="color:var(--text-dim);font-size:12px">任务：${me.mission.desc}</span>`;
+    else t += ` <span class="idtail" style="color:var(--text-dim);font-size:12px">集齐3张${me.faction==="QF"?"红":"蓝"}色情报获胜</span>`;
     $("#myIdentity").innerHTML=t;
   }
   // 座位
@@ -1616,6 +1651,7 @@ function initStart(){
   };
   $("#btnRestart").onclick=()=>location.reload();
   $("#btnAgain").onclick=()=>location.reload();
+  $("#btnLog").onclick=()=>$("#logPanel").classList.toggle("mobile-open");
   $("#btnSpeed").onclick=()=>{
     SPEED = SPEED===1?0:1;
     $("#btnSpeed").textContent = "速度："+(SPEED===1?"正常":"快");
