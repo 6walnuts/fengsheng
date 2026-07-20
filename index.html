@@ -120,6 +120,14 @@
   .chip.black{background:#22252b;border-color:#555}
   .seat .s-dead-mark{position:absolute;right:6px;top:4px;color:var(--danger);font-size:12px;
     font-family:"STKaiti","KaiTi",serif}
+  .seat{cursor:pointer}
+  .seat:hover{border-color:#48546a}
+  .seat .s-clue{font-size:10px;margin-top:3px;color:var(--text-dim)}
+  .tend-qf{color:#e0796c}.tend-jq{color:#7ea8d0}.tend-none{color:#6b7280}
+
+  /* 线索弹窗 */
+  .clue-item{font-size:12px;color:var(--text-dim);padding:4px 0;border-bottom:1px dashed #2c3442;line-height:1.5}
+  .clue-item.strong{color:var(--brass)}
 
   /* 传递中的情报 token */
   #transitToken{
@@ -291,6 +299,15 @@
   </div>
 </div>
 
+<!-- ======== 线索弹窗 ======== -->
+<div class="overlay" id="clueOverlay">
+  <div class="modal">
+    <h2 id="clueTitle"></h2>
+    <div id="clueBody"></div>
+    <div class="mrow"><button class="btn small" id="btnClueClose">关闭</button></div>
+  </div>
+</div>
+
 <script>
 "use strict";
 /* =====================================================
@@ -401,7 +418,8 @@ function newGame(n){
     turn: 0, round: 0, over:false,
     transit: null, transitSeq: 0,
     winners: [], winText:"",
-    events: [],      // 公开行为记录（供 AI 推理）
+    events: [],      // 公开行为记录（AI 推理与线索面板共用）
+    humanClues: [],  // 真人私有情报（破译所得等）：{targetI, text}
   };
   players.forEach(p=>drawCards(p,3,true));
 }
@@ -508,7 +526,9 @@ function render(){
       ${p.alive?"":'<div class="s-dead-mark">殁</div>'}
       <div class="s-name"><span class="nm">${p.char.name}</span>${p.human?'<span class="you">你</span>':""}${factionBadge(p)}</div>
       <div class="s-skill">${p.char.skill}</div>
-      <div class="s-row"><span class="s-hand">手牌 ${p.hand.length}</span><span class="chips">${chips||'<span style="font-size:10px;color:#555">无情报</span>'}</span></div>`;
+      <div class="s-row"><span class="s-hand">手牌 ${p.hand.length}</span><span class="chips">${chips||'<span style="font-size:10px;color:#555">无情报</span>'}</span></div>
+      ${seatClueLine(p)}`;
+    d.onclick=()=>showClues(p);
     box.appendChild(d);
   });
   renderHand();
@@ -537,6 +557,59 @@ function pickHandCard(filter){
 function clearHandPick(){ handClickCb=null; handFilter=null; renderHand(); }
 
 function setPhase(t,sub){ $("#phaseText").textContent=t||""; $("#centerSub").textContent=sub||""; }
+
+/* ---------- 线索面板 ---------- */
+function tendencyOf(t){
+  const s=beliefQF(t);
+  if(s>=3) return '<span class="tend-qf">倾向潜伏</span>';
+  if(s<=-3) return '<span class="tend-jq">倾向军情</span>';
+  return '<span class="tend-none">立场不明</span>';
+}
+function seatClueLine(p){
+  if(p.human || p.revealed || G.over) return "";
+  const n=cluesFor(p).length;
+  return `<div class="s-clue">${tendencyOf(p)}${n?` · 线索 ${n} 条`:""}</div>`;
+}
+function cluesFor(t){
+  const out=[];
+  const nm=i=>G.players[i].char.name;
+  if(t.hint) out.push({text:`【试探】证实：${FACTION_NAME[t.hint]}`, strong:true});
+  for(const e of G.events){
+    if(e.type==="declined" && e.who===t.i)
+      out.push({text:`第${e.round}轮 拒收了明置的${COLOR_NAME[e.color]}情报`, strong:e.color!=="black"});
+    if(e.type==="delivered" && e.fromI===t.i)
+      out.push({text:`第${e.round}轮 ${e.mode==="zhida"?"直达传给":"传出情报被"} ${nm(e.toI)} ${e.mode==="zhida"?"":"收下"}——${COLOR_NAME[e.color]}`, strong:e.color==="black"});
+    if(e.type==="pushedBlack" && e.actor===t.i)
+      out.push({text:`第${e.round}轮 用【误导】把黑色情报塞给了 ${nm(e.toI)}`, strong:true});
+    if(e.type==="burn" && e.actor===t.i)
+      out.push({text:`第${e.round}轮 烧毁了${e.actor===e.targetI?"自己":" "+nm(e.targetI)+" "}的黑色情报`});
+    if(e.type==="intercept" && e.actor===t.i)
+      out.push({text:`第${e.round}轮 截获了一张${COLOR_NAME[e.color]}情报`, strong:e.color!=="black"});
+    if(e.type==="diaobao" && e.actor===t.i)
+      out.push({text:`第${e.round}轮 调包过一张传递中的情报`});
+  }
+  for(const c of G.humanClues) if(c.targetI===t.i) out.push({text:c.text, strong:true});
+  return out;
+}
+function showClues(p){
+  if(AUTOTEST) return;
+  if(p.human){
+    $("#clueTitle").textContent="你的身份";
+    $("#clueBody").innerHTML=`<div class="clue-item strong">${FACTION_NAME[p.faction]}${p.faction==="JY"?"·"+p.mission.name:""}</div>
+      <div class="clue-item">${p.faction==="JY"?p.mission.desc:`集齐三张${p.faction==="QF"?"红":"蓝"}色情报即获胜。`}</div>
+      <div class="clue-item">角色技能：${p.char.skill}</div>`;
+  } else {
+    $("#clueTitle").textContent=`关于 ${p.char.name} 的情报`;
+    const zone=`情报区：红×${countColor(p,"red")} 蓝×${countColor(p,"blue")} 黑×${countColor(p,"black")}`;
+    let html=`<div class="clue-item strong">${p.revealed?`身份已公开：${FACTION_NAME[p.faction]}${p.faction==="JY"?"·"+p.mission.name:""}`:`推测：${tendencyOf(p)}`}</div>
+      <div class="clue-item">${zone} · 手牌 ${p.hand.length} 张</div>`;
+    const clues=cluesFor(p).slice(-12);
+    if(clues.length) html+=clues.map(c=>`<div class="clue-item${c.strong?" strong":""}">${c.text}</div>`).join("");
+    else html+=`<div class="clue-item">暂无行为线索。留意他拒收/接收明置情报、传牌对象与烧毁对象。</div>`;
+    $("#clueBody").innerHTML=html;
+  }
+  $("#clueOverlay").classList.add("on");
+}
 
 /* 行动面板：给真人玩家的按钮选择 */
 function ask(title, options, sub){
@@ -1072,6 +1145,11 @@ async function offerAt(q, isZhida){
 async function doDiaobao(q, sub){
   const tr=G.transit;
   const old=tr.card;
+  // 若真人知道原牌颜色（自己传的/破译过），则记住这张牌进了 q 的手里
+  const me=G.players[0];
+  if(me.human && q!==me && (tr.faceUp || tr.knownTo.has(0))){
+    G.humanClues.push({targetI:q.i, text:`第${G.round}轮 调包拿走了一张${COLOR_NAME[old.color]}情报（藏在手里）`});
+  }
   const idx=q.hand.indexOf(sub); q.hand.splice(idx,1);
   q.hand.push(old);
   tr.card=sub;
@@ -1326,6 +1404,8 @@ function initStart(){
   $("#btnHelp0").onclick=()=>$("#helpOverlay").classList.add("on");
   $("#btnHelp").onclick=()=>$("#helpOverlay").classList.add("on");
   $("#btnHelpClose").onclick=()=>$("#helpOverlay").classList.remove("on");
+  $("#btnClueClose").onclick=()=>$("#clueOverlay").classList.remove("on");
+  $("#clueOverlay").onclick=e=>{ if(e.target.id==="clueOverlay") $("#clueOverlay").classList.remove("on"); };
   $("#btnRestart").onclick=()=>location.reload();
   $("#btnAgain").onclick=()=>location.reload();
   $("#btnSpeed").onclick=()=>{
