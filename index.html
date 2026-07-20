@@ -720,6 +720,12 @@ function setPhase(t,sub){ $("#phaseText").textContent=t||""; $("#centerSub").tex
 
 /* ---------- 线索面板 ---------- */
 function tendencyOf(t){
+  // 拒胜拦截是最强的行为证据，优先于常规倾向判断
+  const dRed  = G.events.some(e=>e.type==="intercept" && e.denial && e.actor===t.i && e.color==="red");
+  const dBlue = G.events.some(e=>e.type==="intercept" && e.denial && e.actor===t.i && e.color==="blue");
+  if(dRed && dBlue) return '<span class="tend-none">疑似打酱油（两边都拦）</span>';
+  if(dRed)  return '<span class="tend-jq">大概率非潜伏（军情/酱油）</span>';
+  if(dBlue) return '<span class="tend-qf">大概率非军情（潜伏/酱油）</span>';
   const s=beliefQF(t);
   if(s>=3) return '<span class="tend-qf">倾向潜伏</span>';
   if(s<=-3) return '<span class="tend-jq">倾向军情</span>';
@@ -744,7 +750,9 @@ function cluesFor(t){
     if(e.type==="burn" && e.actor===t.i)
       out.push({text:`第${e.round}轮 烧毁了${e.actor===e.targetI?"自己":" "+nm(e.targetI)+" "}的黑色情报`});
     if(e.type==="intercept" && e.actor===t.i)
-      out.push({text:`第${e.round}轮 截获了一张${COLOR_NAME[e.color]}情报`, strong:e.color!=="black"});
+      out.push({text:`第${e.round}轮 截获了一张${COLOR_NAME[e.color]}情报`+
+        (e.denial?`——拦下了 ${nm(e.victimI)} 的制胜第三张！大概率不是${e.color==="red"?"潜伏":"军情"}`:""),
+        strong:e.color!=="black"});
     if(e.type==="diaobao" && e.actor===t.i)
       out.push({text:`第${e.round}轮 调包过一张传递中的情报`});
   }
@@ -823,11 +831,22 @@ function beliefQF(target){ // 越大越像潜伏，越小越像军情（仅使�
     }
   }
   s += Math.max(-4, Math.min(4, dr));
-  // 截获过的明置情报同理（抢红→像潜伏）
+  // 截获过的明置情报同理（抢红→像潜伏）；但“拒胜拦截”方向相反且信号极强：
+  // 拦下别人制胜的第三张红，几乎不可能是潜伏（真潜伏放行即团队获胜）
   for(const e of G.events){
     if(e.type==="intercept" && e.actor===target.i && e.color){
-      if(e.color==="red") s+=1;
-      if(e.color==="blue") s-=1;
+      if(e.denial){
+        if(e.color==="red") s-=5;
+        if(e.color==="blue") s+=5;
+      } else {
+        if(e.color==="red") s+=1;
+        if(e.color==="blue") s-=1;
+      }
+    }
+    // 拒胜性收牌：抵消情报区计数带来的错误加分
+    if(e.type==="gained" && e.who===target.i && e.denial){
+      if(e.color==="red") s-=2;
+      if(e.color==="blue") s+=2;
     }
   }
   return s;
@@ -1510,7 +1529,10 @@ async function interceptWindow(receiver){
     if(!intercepted || !jc) break;
     discardFromHand(intercepted,jc);
     log(`${pname(intercepted)} 使用【截获】——情报改由其收下！`,"warn");
-    evt({type:"intercept", actor:intercepted.i, color:tr.card.color});
+    evt({type:"intercept", actor:intercepted.i, color:tr.card.color, victimI:cur.i,
+         denial: tr.card.color!=="black"
+              && countColor(cur,tr.card.color)>=2
+              && countColor(intercepted,tr.card.color)<2});
     rep(`${intercepted.name} 截获（原本将由 ${cur.name} 收下）`,"warn");
     if(intercepted.char.key==="qibai"){
       log(`${pname(intercepted)} 发动【神枪】，摸一张牌。`,"good");
@@ -1550,7 +1572,12 @@ function aiWantIntercept(q, receiver){
 
 /* ---------- 收下情报 & 判定 ---------- */
 async function gainIntel(p, card){
+  // 拒胜性收牌：别人已 2 张同色、自己不足 2 张时抢收，不能当作阵营证据
+  const denialGain = card.color!=="black"
+    && countColor(p,card.color)<2
+    && alivePlayers().some(x=>x!==p && countColor(x,card.color)>=2);
   p.intel.push(card);
+  if(G.transit) evt({type:"gained", who:p.i, color:card.color, denial:denialGain});
   log(`${pname(p)} 收下了一张 ${colorSpan(card.color)}。`, card.color==="black"?"warn":"hl");
   const tr=G.transit;
   if(tr){
