@@ -572,7 +572,7 @@ function revealChar(p){
   // 小翠·眼线：他人翻开暗置角色时摸一张牌
   for(const q of G.players){
     if(q.alive && q!==p && q.char.key==="xiaocui"){
-      log(`${pname(q)} 发动【眼线】，摸一张牌。`,"good");
+      log(`${pname(q)} 发动【眼线】（${pname(p)} 翻开了暗置角色），摸一张牌。`,"good");
       drawCards(q,1,true);
     }
   }
@@ -1264,15 +1264,15 @@ async function runTransit(sender, card, mode, param){
     }
   }
 
-  // 自己收下时的技能
-  if(receiver.i===tr.sender && receiver.char.key==="zhangsiling"){
-    revealChar(receiver);
-    log(`${pname(receiver)} 发动【官威】，摸一张牌。`,"good");
-    drawCards(receiver,1);
-  }
-
   // 截获窗口
   receiver = await interceptWindow(receiver);
+
+  // 自己收下时的技能——必须在截获窗口之后：被截走就不算“由你自己收下”
+  if(receiver.i===tr.sender && receiver.char.key==="zhangsiling"){
+    revealChar(receiver);
+    log(`${pname(receiver)} 发动【官威】（情报由自己收下），摸一张牌。`,"good");
+    drawCards(receiver,1);
+  }
 
   hideToken();
   await gainIntel(receiver, tr.card);  // 用 tr.card：调包可能已把传递中的牌换掉
@@ -1421,7 +1421,7 @@ async function doDiaobao(q, sub){
   const sender=G.players[tr.sender];
   if(sender.char.key==="wuzhiguo" && sender.alive){
     revealChar(sender);
-    log(`${pname(sender)} 发动【硬汉】，摸一张牌。`,"good");
+    log(`${pname(sender)} 发动【硬汉】（其传出的情报被调包），摸一张牌。`,"good");
     drawCards(sender,1);
   }
   render(); showToken(q.i);
@@ -1548,7 +1548,7 @@ async function interceptWindow(receiver){
     const sender=G.players[tr.sender];
     if(sender.char.key==="wuzhiguo" && sender.alive && intercepted.i!==sender.i){
       revealChar(sender);
-      log(`${pname(sender)} 发动【硬汉】，摸一张牌。`,"good");
+      log(`${pname(sender)} 发动【硬汉】（其传出的情报被截获），摸一张牌。`,"good");
       drawCards(sender,1);
     }
     cur=intercepted;
@@ -1625,7 +1625,7 @@ async function gainIntel(p, card){
     const sd=G.players[tr.sender];
     if(sd.alive && sd.i!==p.i && sd.char.key==="heimeigui"){
       revealChar(sd);
-      log(`${pname(sd)} 发动【夜行】，摸两张牌。`,"good");
+      log(`${pname(sd)} 发动【夜行】（其传出的黑色情报被收下），摸两张牌。`,"good");
       drawCards(sd,2);
     }
   }
@@ -1639,7 +1639,7 @@ async function gainIntel(p, card){
     if(q.char.key==="yingzi" && q.alive && !q.turnUsed.shadow){
       q.turnUsed.shadow=true;
       revealChar(q);
-      log(`${pname(q)} 发动【尾随】，摸一张牌。`,"good");
+      log(`${pname(q)} 发动【尾随】（邻座 ${pname(p)} 收下了情报），摸一张牌。`,"good");
       drawCards(q,1);
     }
   }
