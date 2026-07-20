@@ -399,8 +399,9 @@ function newGame(n){
     n, players,
     deck: buildDeck(), discard: [],
     turn: 0, round: 0, over:false,
-    transit: null,
+    transit: null, transitSeq: 0,
     winners: [], winText:"",
+    events: [],      // 公开行为记录（供 AI 推理）
   };
   players.forEach(p=>drawCards(p,3,true));
 }
@@ -568,26 +569,59 @@ function showToken(atIdx){
 }
 function hideToken(){ const t=$("#transitToken"); t.classList.remove("on"); }
 
+/* ---------- 公开事件 ---------- */
+function evt(o){ o.round=G.round; G.events.push(o); }
+
 /* ---------- AI 信念 ---------- */
-function beliefQF(target){ // 越大越像潜伏，越小越像军情
+function beliefQF(target){ // 越大越像潜伏，越小越像军情（仅使用公开信息）
   if(target.revealed || G.over) return target.faction==="QF"?99:target.faction==="JQ"?-99:0;
   let s = countColor(target,"red")*2 - countColor(target,"blue")*2;
   if(target.hint==="QF") s+=6;
   if(target.hint==="JQ") s-=6;
   if(target.hint==="JY") s=0;
+  // 拒收明置情报是强信号：拒红→不像潜伏，拒蓝→不像军情
+  let dr=0;
+  for(const e of G.events){
+    if(e.type==="declined" && e.who===target.i){
+      if(e.color==="red") dr-=1.5;
+      if(e.color==="blue") dr+=1.5;
+    }
+  }
+  s += Math.max(-4, Math.min(4, dr));
+  // 截获过的明置情报同理（抢红→像潜伏）
+  for(const e of G.events){
+    if(e.type==="intercept" && e.actor===target.i && e.color){
+      if(e.color==="red") s+=1;
+      if(e.color==="blue") s-=1;
+    }
+  }
   return s;
+}
+/* 敌意值：a 对 b 的公开敌对行为（正=敌意，负=善意） */
+function hostility(a, b){
+  let h=0;
+  for(const e of G.events){
+    if(e.type==="delivered" && e.fromI===a.i && e.toI===b.i){
+      h += e.color==="black" ? 2 : (e.mode==="zhida" ? -1 : 0);
+    }
+    if(e.type==="pushedBlack" && e.actor===a.i && e.toI===b.i) h+=1.5;
+    if(e.type==="burn" && e.actor===a.i && e.targetI===b.i && a.i!==b.i) h-=2;
+  }
+  return h;
 }
 function aiIsLikelyAlly(me, target){
   if(target===me) return true;
   if(target.revealed) return target.faction===me.faction;
+  if(hostility(target,me)>=2) return false;      // 对我下过黑手的不算队友
   const b=beliefQF(target);
-  if(me.faction==="QF") return b>=2;
-  if(me.faction==="JQ") return b<=-2;
+  if(me.faction==="QF") return b>=2 || (b>-2 && hostility(target,me)<=-2);
+  if(me.faction==="JQ") return b<=-2 || (b<2 && hostility(target,me)<=-2);
   return false;
 }
 function aiIsLikelyEnemy(me, target){
   if(target===me) return false;
   if(target.revealed) return target.faction!==me.faction && target.faction!=="JY";
+  if(hostility(target,me)>=2) return true;       // 谁害我谁是敌人
   const b=beliefQF(target);
   if(me.faction==="QF") return b<=-2;
   if(me.faction==="JQ") return b>=2;
@@ -707,14 +741,14 @@ async function aiPlayPhaseStep(p, usableCards, canSkill){
       if(shao && p.hand.length>1){
         discardFromHand(p,shao);
         log(`${pname(p)} 使用【烧毁】。`,"hl");
-        await burnBlack(target);
+        await burnBlack(p, target);
         return true;
       } else if(canSkill){
         const junk = p.hand.find(c=>c.color==="black") || p.hand[0];
         discardFromHand(p,junk);
         p.turnUsed.jsh=true;
         log(`${pname(p)} 发动【火攻】，弃置一张手牌视为【烧毁】。`,"hl");
-        await burnBlack(target);
+        await burnBlack(p, target);
         return true;
       }
     }
@@ -746,14 +780,15 @@ async function resolveShaohuiEffect(p){
   } else {
     t = targets.includes(p)? p : targets[0];
   }
-  await burnBlack(t);
+  await burnBlack(p, t);
 }
-async function burnBlack(t){
+async function burnBlack(actor, t){
   const idx=t.intel.findIndex(c=>c.color==="black");
   if(idx<0) return;
   const [c]=t.intel.splice(idx,1);
   G.discard.push(c);
   log(`${t===G.players[0]&&t.human?"你":t.name} 情报区的一张黑色情报被烧毁。`,"good");
+  evt({type:"burn", actor:actor.i, targetI:t.i});
   render();
   await sleep(400);
 }
@@ -845,11 +880,11 @@ function aiPlanSend(p){
   const owns   = oc? p.hand.filter(c=>c.color===oc):[];
   const offs   = p.hand.filter(c=>c.color!=="black" && (!oc||c.color!==oc));
 
-  // 黑牌优先直达丢给快死的敌人
+  // 黑牌优先直达丢给快死的敌人（保留随机性，避免行为模式被一眼读穿）
   if(blacks.length){
     const zhBlack = blacks.find(c=>c.mark==="zhida");
     const killT = enemies.filter(q=>countColor(q,"black")>=1).sort((a,b)=>countColor(b,"black")-countColor(a,"black"))[0];
-    if(zhBlack && (killT||enemies.length)){
+    if(zhBlack && (killT||enemies.length) && (killT ? true : Math.random()<0.7)){
       return {card:zhBlack, param:{target: killT||rnd(enemies)}};
     }
     const c = rnd(blacks);
@@ -885,16 +920,18 @@ function aiPlanSend(p){
 
 async function runTransit(sender, card, mode, param){
   G.transit = {
+    id: ++G.transitSeq,
     card, sender:sender.i, mode,
     dir: param.dir||null,
     faceUp: mode==="wenben",
     pos: sender.i,
     knownTo: new Set([sender.i]),
     redirects: 0,
+    tamperedBy: null,
   };
   const tr=G.transit;
   if(mode==="zhida"){
-    log(`${pname(sender)} 传出一张【直达】情报，面朝下交给 ${pname(param.target)}。`,"hl");
+    log(`${pname(sender)} 传出一张【直达】情报，面朝下${param.target?`交给 ${pname(param.target)}`:"——已无人可接收"}。`,"hl");
   } else {
     log(`${pname(sender)} 传出一张【${MARK_NAME[mode]}】情报${tr.faceUp?`（${colorSpan(card.color)}）`:"（面朝下）"}，${param.dir==="cw"?"顺时针":"逆时针"}传递。`,"hl");
   }
@@ -987,7 +1024,10 @@ async function offerAt(q, isZhida){
         (countColor(q,"black")>=2?"　<span style='color:var(--danger)'>⚠ 你已有两张黑色情报！</span>":"");
       const act = await ask("情报传到你面前：", opts, info);
       if(act==="accept") return "accept";
-      if(act==="pass") return "pass";
+      if(act==="pass"){
+        if(tr.faceUp) evt({type:"declined", who:q.i, color:tr.card.color});
+        return "pass";
+      }
       if(act==="poyi"){
         const pc=q.hand.find(c=>c.fn==="poyi");
         discardFromHand(q,pc);
@@ -1017,10 +1057,12 @@ async function offerAt(q, isZhida){
         discardFromHand(q,wc);
         tr.redirects++;
         log(`你使用【误导】，情报改传给 ${pname(t)}。`,"hl");
+        evt({type:"wudao", transitId:tr.id, actor:q.i, toI:t.i});
         return {redirectTo:t};
       }
     } else {
       const d = await aiOffer(q, isZhida);
+      if(d==="pass" && tr.faceUp) evt({type:"declined", who:q.i, color:tr.card.color});
       if(d!=="again") return d;
     }
   }
@@ -1034,7 +1076,9 @@ async function doDiaobao(q, sub){
   q.hand.push(old);
   tr.card=sub;
   tr.knownTo=new Set([q.i]);
+  tr.tamperedBy=q.i;
   log(`${pname(q)} 使用【调包】，将传递中的情报换成了另一张牌！`,"warn");
+  evt({type:"diaobao", actor:q.i});
   const sender=G.players[tr.sender];
   if(sender.char.key==="wuzhiguo" && sender.alive){
     log(`${pname(sender)} 发动【硬汉】，摸一张牌。`,"good");
@@ -1079,6 +1123,7 @@ async function aiOffer(q, isZhida){
         if(adj.length){
           discardFromHand(q,wc); tr.redirects++;
           log(`${pname(q)} 使用【误导】，情报改传给 ${pname(adj[0])}。`,"warn");
+          evt({type:"wudao", transitId:tr.id, actor:q.i, toI:adj[0].i});
           await sleep(350);
           return {redirectTo:adj[0]};
         }
@@ -1086,6 +1131,8 @@ async function aiOffer(q, isZhida){
       return "pass";
     }
     if(oc && known===oc) return "accept";
+    // 前两轮偶尔收一张敌色情报伪装立场
+    if(oc && known===enemyColorOf(q) && G.round<=2 && countColor(q,known)===0 && Math.random()<0.15) return "accept";
     // 敌方颜色：对面有人两张时截胡
     const dangerous = alivePlayers().some(t=>t!==q && countColor(t,known)>=2 && !aiIsLikelyAlly(q,t));
     if(dangerous && Math.random()<0.85) return "accept";
@@ -1138,6 +1185,7 @@ async function interceptWindow(receiver){
     const jc=intercepted.hand.find(c=>c.fn==="jiehuo");
     discardFromHand(intercepted,jc);
     log(`${pname(intercepted)} 使用【截获】——情报改由其收下！`,"warn");
+    evt({type:"intercept", actor:intercepted.i, color:tr.card.color});
     const sender=G.players[tr.sender];
     if(sender.char.key==="wuzhiguo" && sender.alive && intercepted.i!==sender.i){
       log(`${pname(sender)} 发动【硬汉】，摸一张牌。`,"good");
@@ -1173,6 +1221,17 @@ function aiWantIntercept(q, receiver){
 async function gainIntel(p, card){
   p.intel.push(card);
   log(`${pname(p)} 收下了一张 ${colorSpan(card.color)}。`, card.color==="black"?"warn":"hl");
+  const tr=G.transit;
+  if(tr){
+    const fromI = tr.tamperedBy!=null ? tr.tamperedBy : tr.sender;
+    if(fromI!==p.i) evt({type:"delivered", fromI, toI:p.i, color:card.color, mode:tr.mode});
+    if(card.color==="black"){
+      for(const e of G.events){
+        if(e.type==="wudao" && e.transitId===tr.id && e.toI===p.i && e.actor!==p.i)
+          evt({type:"pushedBlack", actor:e.actor, toI:p.i});
+      }
+    }
+  }
   render();
   await sleep(500);
 
