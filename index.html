@@ -129,6 +129,16 @@
   .clue-item{font-size:12px;color:var(--text-dim);padding:4px 0;border-bottom:1px dashed #2c3442;line-height:1.5}
   .clue-item.strong{color:var(--brass)}
 
+  /* 复盘时间线 */
+  #replayBox{display:none;margin-top:14px;border-top:1px solid #2c3442;padding-top:10px;
+    max-height:40vh;overflow-y:auto}
+  #replayBox p{font-size:12px;margin-bottom:3px;color:var(--text-dim)}
+  #replayBox p.rep-round{color:var(--brass);margin-top:8px;letter-spacing:.2em}
+  #replayBox p.warn{color:var(--danger)}
+  #replayBox p.good{color:var(--ok)}
+  #replayBox p.hl{color:var(--text)}
+  .fn-QF{color:#e0796c}.fn-JQ{color:#7ea8d0}.fn-JY{color:#c9a85c}
+
   /* 传递中的情报 token */
   #transitToken{
     position:absolute;width:34px;height:46px;border-radius:3px;z-index:15;
@@ -295,7 +305,11 @@
     <h2 id="overTitle" class="kai"></h2>
     <p id="overDesc"></p>
     <div id="overIds"></div>
-    <div class="mrow"><button class="btn" id="btnAgain">再来一局</button></div>
+    <div id="replayBox"></div>
+    <div class="mrow">
+      <button class="btn small" id="btnReplay">查看复盘</button>
+      <button class="btn" id="btnAgain">再来一局</button>
+    </div>
   </div>
 </div>
 
@@ -419,6 +433,7 @@ function newGame(n){
     transit: null, transitSeq: 0,
     winners: [], winText:"",
     events: [],      // 公开行为记录（AI 推理与线索面板共用）
+    replay: [],      // 全知复盘时间线（终局后展示）
     humanClues: [],  // 真人私有情报（破译所得等）：{targetI, text}
   };
   players.forEach(p=>drawCards(p,3,true));
@@ -642,8 +657,9 @@ function showToken(atIdx){
 }
 function hideToken(){ const t=$("#transitToken"); t.classList.remove("on"); }
 
-/* ---------- 公开事件 ---------- */
+/* ---------- 公开事件 / 复盘 ---------- */
 function evt(o){ o.round=G.round; G.events.push(o); }
+function rep(text, cls){ G.replay.push({round:G.round, text, cls:cls||""}); }
 
 /* ---------- AI 信念 ---------- */
 function beliefQF(target){ // 越大越像潜伏，越小越像军情（仅使用公开信息）
@@ -862,6 +878,7 @@ async function burnBlack(actor, t){
   G.discard.push(c);
   log(`${t===G.players[0]&&t.human?"你":t.name} 情报区的一张黑色情报被烧毁。`,"good");
   evt({type:"burn", actor:actor.i, targetI:t.i});
+  rep(`${actor.char.name} 烧毁了 ${actor===t?"自己":t.char.name} 的黑色情报`,"good");
   render();
   await sleep(400);
 }
@@ -877,6 +894,7 @@ async function resolveShitan(p, card, presetTarget){
   }
   discardFromHand(p,card);
   log(`${pname(p)} 对 ${pname(t)} 使用【试探】——「${PROBE_TEXTS[card.probe]}」`,"hl");
+  rep(`${p.char.name} 试探 ${t.char.name}（${PROBE_TEXTS[card.probe].slice(0,9)}…）`);
   await sleep(500);
 
   if(t.char.key==="laobie"){
@@ -1003,6 +1021,7 @@ async function runTransit(sender, card, mode, param){
     tamperedBy: null,
   };
   const tr=G.transit;
+  rep(`${sender.char.name} 传出【${MARK_NAME[mode]}】${COLOR_NAME[card.color]}情报${mode==="zhida"?`，指定 ${param.target?param.target.char.name:"（无人）"}`:`，${param.dir==="cw"?"顺时针":"逆时针"}`}`, card.color==="black"?"warn":"");
   if(mode==="zhida"){
     log(`${pname(sender)} 传出一张【直达】情报，面朝下${param.target?`交给 ${pname(param.target)}`:"——已无人可接收"}。`,"hl");
   } else {
@@ -1099,6 +1118,7 @@ async function offerAt(q, isZhida){
       if(act==="accept") return "accept";
       if(act==="pass"){
         if(tr.faceUp) evt({type:"declined", who:q.i, color:tr.card.color});
+        rep(`${q.char.name} ${isZhida?"退回":"没有接收"}（${tr.faceUp?"明置":"暗置"}）`);
         return "pass";
       }
       if(act==="poyi"){
@@ -1106,12 +1126,14 @@ async function offerAt(q, isZhida){
         discardFromHand(q,pc);
         tr.knownTo.add(q.i);
         log(`你使用【破译】偷看：这是一张 ${colorSpan(tr.card.color)}。`,"hl");
+        rep(`${q.char.name} 破译偷看（${COLOR_NAME[tr.card.color]}）`);
         continue;
       }
       if(act==="skillview"){
         q.turnUsed.viewSkill=true;
         tr.knownTo.add(q.i);
         log(`你发动【译电】偷看：这是一张 ${colorSpan(tr.card.color)}。`,"hl");
+        rep(`${q.char.name} 译电偷看（${COLOR_NAME[tr.card.color]}）`);
         continue;
       }
       if(act==="diaobao"){
@@ -1131,11 +1153,16 @@ async function offerAt(q, isZhida){
         tr.redirects++;
         log(`你使用【误导】，情报改传给 ${pname(t)}。`,"hl");
         evt({type:"wudao", transitId:tr.id, actor:q.i, toI:t.i});
+        rep(`${q.char.name} 误导 → 改传 ${t.char.name}`);
         return {redirectTo:t};
       }
     } else {
       const d = await aiOffer(q, isZhida);
-      if(d==="pass" && tr.faceUp) evt({type:"declined", who:q.i, color:tr.card.color});
+      if(d==="pass"){
+        if(tr.faceUp) evt({type:"declined", who:q.i, color:tr.card.color});
+        rep(`${q.char.name} ${isZhida?"退回":"没有接收"}（${tr.faceUp?"明置":"暗置"}${tr.knownTo.has(q.i)&&!tr.faceUp?"·已偷看":""}）`);
+      }
+      if(d==="accept") rep(`${q.char.name} 决定接收`);
       if(d!=="again") return d;
     }
   }
@@ -1157,6 +1184,7 @@ async function doDiaobao(q, sub){
   tr.tamperedBy=q.i;
   log(`${pname(q)} 使用【调包】，将传递中的情报换成了另一张牌！`,"warn");
   evt({type:"diaobao", actor:q.i});
+  rep(`${q.char.name} 调包：${COLOR_NAME[old.color]} → 换成 ${COLOR_NAME[sub.color]}`,"warn");
   const sender=G.players[tr.sender];
   if(sender.char.key==="wuzhiguo" && sender.alive){
     log(`${pname(sender)} 发动【硬汉】，摸一张牌。`,"good");
@@ -1202,6 +1230,7 @@ async function aiOffer(q, isZhida){
           discardFromHand(q,wc); tr.redirects++;
           log(`${pname(q)} 使用【误导】，情报改传给 ${pname(adj[0])}。`,"warn");
           evt({type:"wudao", transitId:tr.id, actor:q.i, toI:adj[0].i});
+          rep(`${q.char.name} 误导 → 改传 ${adj[0].char.name}`);
           await sleep(350);
           return {redirectTo:adj[0]};
         }
@@ -1264,6 +1293,7 @@ async function interceptWindow(receiver){
     discardFromHand(intercepted,jc);
     log(`${pname(intercepted)} 使用【截获】——情报改由其收下！`,"warn");
     evt({type:"intercept", actor:intercepted.i, color:tr.card.color});
+    rep(`${intercepted.char.name} 截获（原本将由 ${cur.char.name} 收下）`,"warn");
     const sender=G.players[tr.sender];
     if(sender.char.key==="wuzhiguo" && sender.alive && intercepted.i!==sender.i){
       log(`${pname(sender)} 发动【硬汉】，摸一张牌。`,"good");
@@ -1309,6 +1339,7 @@ async function gainIntel(p, card){
           evt({type:"pushedBlack", actor:e.actor, toI:p.i});
       }
     }
+    rep(`⟶ ${p.char.name} 收下 ${COLOR_NAME[card.color]}情报`, card.color==="black"?"warn":"hl");
   }
   render();
   await sleep(500);
@@ -1353,6 +1384,7 @@ function checkWinAfterGain(p){
 async function killPlayer(p){
   p.alive=false; p.revealed=true;
   log(`💀 ${pname(p)} 收到三张黑色情报，惨遭杀害！其身份是【${FACTION_NAME[p.faction]}${p.faction==="JY"?"·"+p.mission.name:""}】。`,"warn");
+  rep(`💀 ${p.char.name} 三张黑色情报，出局（${FACTION_NAME[p.faction]}）`,"warn");
   G.discard.push(...p.hand.splice(0), ...p.intel.splice(0));
   render();
   await sleep(700);
@@ -1382,6 +1414,14 @@ function endGame(winners, text){
       <span>${p.alive?"存活":"出局"}</span>${w?'<span class="win">★ 胜</span>':""}</div>`;
   }).join("");
   $("#overIds").innerHTML=rows;
+  // 复盘时间线（终局全知视角，阵营着色）
+  const paint = s=>{ for(const q of G.players) s=s.split(q.char.name).join(`<span class="fn-${q.faction}">${q.char.name}</span>`); return s; };
+  let lastRound=0, rhtml="";
+  for(const r of G.replay){
+    if(r.round!==lastRound){ rhtml+=`<p class="rep-round">— 第 ${r.round} 轮 —</p>`; lastRound=r.round; }
+    rhtml+=`<p class="${r.cls}">${paint(r.text)}</p>`;
+  }
+  $("#replayBox").innerHTML=rhtml||"<p>本局没有记录。</p>";
   $("#overOverlay").classList.add("on");
   if(AUTOTEST){
     window.__gameResult = { winners: winners.map(w=>w.char.name), text, round:G.round };
@@ -1406,6 +1446,12 @@ function initStart(){
   $("#btnHelpClose").onclick=()=>$("#helpOverlay").classList.remove("on");
   $("#btnClueClose").onclick=()=>$("#clueOverlay").classList.remove("on");
   $("#clueOverlay").onclick=e=>{ if(e.target.id==="clueOverlay") $("#clueOverlay").classList.remove("on"); };
+  $("#btnReplay").onclick=()=>{
+    const b=$("#replayBox");
+    const on = b.style.display==="block";
+    b.style.display = on? "none":"block";
+    $("#btnReplay").textContent = on? "查看复盘":"收起复盘";
+  };
   $("#btnRestart").onclick=()=>location.reload();
   $("#btnAgain").onclick=()=>location.reload();
   $("#btnSpeed").onclick=()=>{
