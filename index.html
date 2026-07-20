@@ -324,7 +324,7 @@
        <b class="rule-k">密电</b>：面朝下，沿你选择的方向从邻座开始依次传递，每人可接收或传给下家。<br>
        <b class="rule-k">文本</b>：面朝上，同样依次传递。<br>
        若无人接收，情报回到传出者面前，由传出者收下。</p>
-    <p><b class="rule-k">功能牌</b>：<b>截获</b>——他人即将收下情报时，改为由你收下；<b>破译</b>——面朝下的情报传到你面前时偷看它；<b>误导</b>——把传到你面前的情报改传给你的左右邻座；<b>调包</b>——用一张手牌替换传到你面前的情报，原情报收入你的手牌；<b>烧毁</b>——出牌阶段烧掉任意玩家情报区的一张黑色情报；<b>试探</b>——出牌阶段指定一名玩家，其须按真实身份执行牌上指令；<b>平信</b>——无功能，仅作情报。</p>
+    <p><b class="rule-k">功能牌</b>：<b>截获</b>——他人即将收下情报时，改为由你收下；<b>破译</b>——面朝下的情报传到你面前时偷看它；<b>误导</b>——把传到你面前的情报改传给你的左右邻座；<b>调包</b>——弃此牌，从手牌任选一张换入传递，原来传递中的情报收入你的手牌；<b>烧毁</b>——出牌阶段烧掉任意玩家情报区的一张黑色情报；<b>试探</b>——出牌阶段指定一名玩家，其须按真实身份执行牌上指令；<b>平信</b>——无功能，仅作情报。</p>
     <p><b class="rule-k">暗置角色</b>：每人一张角色牌，部分角色开局暗置（他人只见座位代号）。暗置技能首次触发时当众翻开，并摸一张牌。公开角色（顾晓梦、金生火、王田香、柒佰、老枪、小翠）开局即亮明。</p>
     <p><b class="rule-k">提示</b>：情报区的牌对所有人公开。传出情报前想清楚：这张牌的颜色、传给谁、走哪个方向，都会暴露你的立场。点击任意座位可查看你已掌握的线索与推测。</p>
     <p style="color:#6b6558;font-size:11px">网页版为适配单机对 AI 而对原桌游细节有少量简化（角色技能取自其中一部分，文本/密电方向可自选）。</p>
@@ -369,7 +369,7 @@ const FN_DESC    = {
   jiehuo:"他人收下情报时，改为你收下",
   poyi:"偷看传到你面前的暗置情报",
   wudao:"把面前的情报改传给你的邻座",
-  diaobao:"用手牌替换传到你面前的情报",
+  diaobao:"任选一张手牌换入传递，原情报归你",
   shaohui:"烧掉任一玩家的一张黑色情报",
   shitan:"令一名玩家按真实身份行动",
   none:"无功能，仅作情报",
@@ -660,6 +660,17 @@ function pickHandCard(filter){
   return new Promise(res=>{ handFilter=filter||null; handClickCb=res; renderHand(); });
 }
 function clearHandPick(){ handClickCb=null; handFilter=null; renderHand(); }
+/* 可撤回的选牌：显示提示与“取消”按钮，取消时返回 null */
+function pickHandCardCancellable(filter, msg){
+  apMsg(msg);
+  const cancelBtn=document.createElement("button");
+  cancelBtn.className="btn small warn"; cancelBtn.textContent="↩ 取消";
+  $("#actionPanel").appendChild(cancelBtn);
+  return new Promise(res=>{
+    cancelBtn.onclick=()=>{ clearHandPick(); clearAsk(); res(null); };
+    pickHandCard(filter).then(c=>{ clearAsk(); res(c); });
+  });
+}
 
 function setPhase(t,sub){ $("#phaseText").textContent=t||""; $("#centerSub").textContent=sub||""; }
 
@@ -877,26 +888,20 @@ async function playPhase(p){
       const act = await ask("出牌阶段：", opts, canPlay?"可用：烧毁 / 试探。传情报的牌要留好，手牌至少保留一张。":"");
       if(act==="end") break;
       if(act==="card"){
-        apMsg("点选一张【烧毁】或【试探】使用（再点“取消”按钮放弃）…");
-        const cancelBtn=document.createElement("button");
-        cancelBtn.className="btn small"; cancelBtn.textContent="取消";
-        $("#actionPanel").appendChild(cancelBtn);
-        const chosen = await new Promise(res=>{
-          cancelBtn.onclick=()=>{ clearHandPick(); res(null); };
-          pickHandCard(c=>usableCards.includes(c)).then(res);
-        });
-        clearAsk();
+        const chosen = await pickHandCardCancellable(c=>usableCards.includes(c),
+          "点选一张【烧毁】或【试探】使用…");
         if(!chosen) continue;
         if(chosen.fn==="shaohui") await resolveShaohui(p, chosen);
         else await resolveShitan(p, chosen);
       } else if(act==="skill"){
-        apMsg("弃置一张手牌，视为使用【烧毁】…");
-        const c = await pickHandCard();
-        clearAsk();
+        const c = await pickHandCardCancellable(null, "弃置一张手牌，视为使用【烧毁】…");
+        if(!c) continue;
+        const t = await chooseBurnTarget(true);
+        if(!t) continue;
         discardFromHand(p,c);
         p.turnUsed.jsh=true;
         log(`${pname(p)} 发动【火攻】，弃置一张手牌视为【烧毁】。`,"hl");
-        await resolveShaohuiEffect(p);
+        await burnBlack(p, t);
       }
     } else {
       const acted = await aiPlayPhaseStep(p, usableCards, canSkill);
@@ -948,21 +953,18 @@ async function aiPlayPhaseStep(p, usableCards, canSkill){
 }
 
 async function resolveShaohui(p, card){
+  const t = await chooseBurnTarget(true);
+  if(!t) return;                       // 撤回：不弃牌
   discardFromHand(p,card);
   log(`${pname(p)} 使用【烧毁】。`,"hl");
-  await resolveShaohuiEffect(p);
-}
-async function resolveShaohuiEffect(p){
-  const targets = G.players.filter(q=>q.alive && countColor(q,"black")>0);
-  if(!targets.length){ log("场上没有黑色情报，烧毁落空。"); return; }
-  let t;
-  if(p.human){
-    t = await ask("选择烧毁谁的一张黑色情报：",
-      targets.map(q=>({label:`${q.name}（黑×${countColor(q,"black")}）`,value:q})));
-  } else {
-    t = targets.includes(p)? p : targets[0];
-  }
   await burnBlack(p, t);
+}
+async function chooseBurnTarget(cancellable){
+  const targets = G.players.filter(q=>q.alive && countColor(q,"black")>0);
+  if(!targets.length){ log("场上没有黑色情报，烧毁落空。"); return null; }
+  const opts = targets.map(q=>({label:`${q.name}（黑×${countColor(q,"black")}）`,value:q}));
+  if(cancellable) opts.push({label:"↩ 取消",value:null,warn:true});
+  return await ask("选择烧毁谁的一张黑色情报：", opts);
 }
 async function burnBlack(actor, t){
   const idx=t.intel.findIndex(c=>c.color==="black");
@@ -981,8 +983,10 @@ async function resolveShitan(p, card, presetTarget){
   let t = presetTarget;
   if(!t){
     if(p.human){
-      t = await ask(`使用【试探】（${PROBE_TEXTS[card.probe]}），选择目标：`,
-        cands.map(q=>({label:q.name,value:q})));
+      const opts = cands.map(q=>({label:q.name,value:q}));
+      opts.push({label:"↩ 取消",value:null,warn:true});
+      t = await ask(`使用【试探】（${PROBE_TEXTS[card.probe]}），选择目标：`, opts);
+      if(!t) return;                   // 撤回：不弃牌
     } else t = rnd(cands);
   }
   discardFromHand(p,card);
@@ -1065,17 +1069,27 @@ async function sendPhase(p){
   if(p.hand.length===0){ log(`${pname(p)} 没有手牌，无法传递情报。`); return; }
   let card, mode, param={};
   if(p.human){
-    apMsg("传递情报：点选一张手牌传出（右上角印章决定传递方式）…");
-    card = await pickHandCard();
-    clearAsk();
-    mode = card.mark;
-    if(mode==="zhida"){
-      const cands=alivePlayers().filter(q=>q!==p);
-      if(cands.length) param.target = await ask(`【直达】${COLOR_NAME[card.color]}情报，面朝下交给谁？`,
-        cands.map(q=>({label:q.name,value:q})));
-    } else {
-      param.dir = await ask(`【${MARK_NAME[mode]}】${COLOR_NAME[card.color]}情报，向哪个方向传递？`,
-        [{label:"顺时针（左手边）",value:"cw"},{label:"逆时针（右手边）",value:"ccw"}]);
+    // 可反悔：确定方向/目标前都能“重新选牌”
+    for(;;){
+      apMsg("传递情报：点选一张手牌传出（右上角印章决定传递方式）…");
+      card = await pickHandCard();
+      clearAsk();
+      mode = card.mark;
+      if(mode==="zhida"){
+        const cands=alivePlayers().filter(q=>q!==p);
+        if(!cands.length){ param={}; break; }
+        const opts=cands.map(q=>({label:q.name,value:q}));
+        opts.push({label:"↩ 重新选牌",value:"__back",warn:true});
+        const t = await ask(`【直达】${COLOR_NAME[card.color]}情报，面朝下交给谁？`, opts);
+        if(t==="__back") continue;
+        param={target:t}; break;
+      } else {
+        const d = await ask(`【${MARK_NAME[mode]}】${COLOR_NAME[card.color]}情报，向哪个方向传递？`,
+          [{label:"顺时针（左手边）",value:"cw"},{label:"逆时针（右手边）",value:"ccw"},
+           {label:"↩ 重新选牌",value:"__back",warn:true}]);
+        if(d==="__back") continue;
+        param={dir:d}; break;
+      }
     }
   } else {
     const plan = aiPlanSend(p);
@@ -1226,7 +1240,7 @@ async function offerAt(q, isZhida){
   await sleep(650);
 
   let guard=0;
-  while(guard++<6){
+  while(guard++<12){
     const known = knownColorTo(q);
     if(q.human){
       const opts=[];
@@ -1268,16 +1282,18 @@ async function offerAt(q, isZhida){
       }
       if(act==="diaobao"){
         const dc=q.hand.find(c=>c.fn==="diaobao");
-        apMsg("选择一张手牌换入传递（原情报进你手牌）…");
-        const sub=await pickHandCard(c=>c!==dc);
-        clearAsk();
+        const sub=await pickHandCardCancellable(c=>c!==dc,
+          "选择一张手牌换入传递（原情报进你手牌）…");
+        if(!sub) continue;             // 撤回：不弃调包牌
         discardFromHand(q,dc);
         await doDiaobao(q, sub);
         continue;
       }
       if(act==="emf"){
         const adj=adjAlive(q);
-        const t=await ask("太极：改传给哪位邻座？", adj.map(a=>({label:a.name,value:a})));
+        const t=await ask("太极：改传给哪位邻座？",
+          [...adj.map(a=>({label:a.name,value:a})), {label:"↩ 取消",value:null,warn:true}]);
+        if(!t) continue;
         q.turnUsed.emf=true;
         revealChar(q);
         tr.redirects++;
@@ -1289,7 +1305,9 @@ async function offerAt(q, isZhida){
       if(act==="wudao"){
         const wc=q.hand.find(c=>c.fn==="wudao");
         const adj=adjAlive(q);
-        const t=await ask("误导：改传给哪位邻座？", adj.map(a=>({label:a.name,value:a})));
+        const t=await ask("误导：改传给哪位邻座？",
+          [...adj.map(a=>({label:a.name,value:a})), {label:"↩ 取消",value:null,warn:true}]);
+        if(!t) continue;
         discardFromHand(q,wc);
         tr.redirects++;
         log(`你使用【误导】，情报改传给 ${pname(t)}。`,"hl");
