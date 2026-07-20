@@ -275,6 +275,7 @@
     <div class="pcount" id="pcountRow"></div>
     <button class="btn" id="btnStart">潜 入</button>
     <button class="btn small" id="btnHelp0">游戏规则</button>
+    <div id="statsLine" style="font-size:11px;color:var(--text-dim);letter-spacing:.05em"></div>
   </div>
 </div>
 
@@ -424,9 +425,30 @@ function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.rand
 function rnd(a){ return a[Math.floor(Math.random()*a.length)]; }
 const AUTOTEST = /[?&]autotest/.test(location.search);
 let SPEED = 1;  // 0=快 1=正常
+let GEN = 0;    // 对局代数：软重置后旧对局的异步链在下一次 sleep 处永久冻结
 function sleep(ms){
   if(AUTOTEST) return Promise.resolve();
-  return new Promise(r=>setTimeout(r, SPEED===0? Math.min(ms,120): ms));
+  const g=GEN;
+  return new Promise(r=>setTimeout(()=>{ if(g===GEN) r(); }, SPEED===0? Math.min(ms,120): ms));
+}
+
+/* ---------- 本地战绩 ---------- */
+function loadStats(){ try{ return JSON.parse(localStorage.getItem("fs_stats")||"{}"); }catch(e){ return {}; } }
+function saveStats(s){ try{ localStorage.setItem("fs_stats", JSON.stringify(s)); }catch(e){} }
+function recordStats(win, faction){
+  const s=loadStats();
+  s.games=(s.games||0)+1; if(win) s.wins=(s.wins||0)+1;
+  s.by=s.by||{};
+  const b=s.by[faction]=s.by[faction]||{g:0,w:0};
+  b.g++; if(win) b.w++;
+  saveStats(s);
+}
+function statsText(){
+  const s=loadStats();
+  if(!s.games) return "";
+  const by=s.by||{};
+  const parts=["QF","JQ","JY"].map(f=>{ const b=by[f]; return b? `${FACTION_NAME[f]} ${b.w}胜/${b.g}战`:null; }).filter(Boolean).join(" · ");
+  return `本地战绩：${s.games} 战 ${s.wins||0} 胜${parts?"（"+parts+"）":""}`;
 }
 
 /* ---------- 牌库 ---------- */
@@ -794,17 +816,20 @@ function knownColorTo(p){ // 传递中的牌，p 是否知道颜色
 
 /* ---------- 回合主循环 ---------- */
 async function runGame(){
+  const myGen=GEN;
   render();
-  while(!G.over){
+  let lastTurnIdx=Infinity, turnCount=0;
+  while(!G.over && myGen===GEN){
     const p=G.players[G.turn];
     if(p.alive){
-      if(G.turn===0 || G.round===0) G.round++;
+      if(G.turn<=lastTurnIdx) G.round++; // 座位序回绕视为新一轮（0号位死亡也照常计轮）
+      lastTurnIdx=G.turn;
       await doTurn(p);
-      if(G.over) break;
+      if(G.over || myGen!==GEN) break;
     }
     G.turn = nextAliveIdx(G.turn);
     // 安全阈值：极端情况防止死循环
-    if(G.round>200){ endGame([], "对局过长，无人获胜。"); break; }
+    if(++turnCount>1200){ endGame([], "对局过长，无人获胜。"); break; }
   }
 }
 
@@ -1602,8 +1627,9 @@ function endGame(winners, text){
   hideToken(); clearAsk(); render();
   const me=G.players[0];
   const meWin = winners.includes(me);
+  if(!AUTOTEST && me.human) recordStats(meWin, me.faction);
   $("#overTitle").textContent = winners.length===0? "无人生还" : (me.human ? (meWin?"你赢了":"你输了") : "对局结束");
-  $("#overDesc").textContent = text;
+  $("#overDesc").innerHTML = text + (!AUTOTEST&&me.human? `<br><span style="font-size:11px;color:var(--text-dim)">${statsText()}</span>`:"");
   const rows = G.players.map(p=>{
     const w=winners.includes(p);
     return `<div class="idrow"><span>${p.name}${p.human?"（你）":""}·${p.char.name}</span>
@@ -1649,19 +1675,40 @@ function initStart(){
     b.style.display = on? "none":"block";
     $("#btnReplay").textContent = on? "查看复盘":"收起复盘";
   };
-  $("#btnRestart").onclick=()=>location.reload();
-  $("#btnAgain").onclick=()=>location.reload();
+  $("#btnRestart").onclick=()=>softReset(true);
+  $("#btnAgain").onclick=()=>softReset(false);
   $("#btnLog").onclick=()=>$("#logPanel").classList.toggle("mobile-open");
   $("#btnSpeed").onclick=()=>{
     SPEED = SPEED===1?0:1;
     $("#btnSpeed").textContent = "速度："+(SPEED===1?"正常":"快");
   };
+  $("#statsLine").textContent=statsText();
   window.addEventListener("resize",()=>{ if(G) render(); });
 }
+/* 软重置：不刷新页面，冻结旧对局异步链后开新局或回主菜单 */
+function softReset(toMenu){
+  GEN++;
+  hideToken(); clearAsk(); clearHandPick();
+  $("#overOverlay").classList.remove("on");
+  $("#clueOverlay").classList.remove("on");
+  $("#replayBox").style.display="none";
+  $("#btnReplay").textContent="查看复盘";
+  $("#logPanel").classList.remove("mobile-open");
+  if(toMenu){
+    G=null;
+    $("#gameScreen").classList.remove("on");
+    $("#startScreen").style.display="flex";
+    $("#statsLine").textContent=statsText();
+  } else {
+    startGame();
+  }
+}
 function startGame(){
+  GEN++;
   $("#startScreen").style.display="none";
   $("#gameScreen").classList.add("on");
   $("#logBody").innerHTML="";
+  $("#myIdentity").innerHTML="";
   newGame(chosenN);
   const me=G.players[0];
   if(me.human){
