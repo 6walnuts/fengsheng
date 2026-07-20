@@ -660,6 +660,27 @@ function pickHandCard(filter){
   return new Promise(res=>{ handFilter=filter||null; handClickCb=res; renderHand(); });
 }
 function clearHandPick(){ handClickCb=null; handFilter=null; renderHand(); }
+/* 打出功能牌时的代价选择：黑牌最优先，其次异色，本方颜色最后 */
+function costPreference(q, c){
+  const oc=ownColor(q);
+  if(c.color==="black") return 0;
+  if(!oc || c.color!==oc) return 1;
+  return 2;
+}
+function aiPickFnCard(q, fn){
+  const copies=q.hand.filter(c=>c.fn===fn);
+  if(!copies.length) return null;
+  return copies.slice().sort((a,b)=>costPreference(q,a)-costPreference(q,b))[0];
+}
+/* 有多张同名功能牌时让真人挑选打出哪张（一张时直接用，取消返回 null） */
+async function chooseFnCard(q, fn, actionName){
+  const copies=q.hand.filter(c=>c.fn===fn);
+  if(!copies.length) return null;
+  if(!q.human) return aiPickFnCard(q, fn);
+  if(copies.length===1) return copies[0];
+  return await pickHandCardCancellable(c=>copies.includes(c),
+    `你有 ${copies.length} 张【${actionName}】，点选要打出的那张（注意颜色与印章不同）…`);
+}
 /* 可撤回的选牌：显示提示与“取消”按钮，取消时返回 null */
 function pickHandCardCancellable(filter, msg){
   apMsg(msg);
@@ -914,7 +935,7 @@ async function playPhase(p){
 async function aiPlayPhaseStep(p, usableCards, canSkill){
   // 1) 优先烧自己的黑情报（殉道者除外）
   const martyr = p.faction==="JY" && p.mission.key==="martyr";
-  const shao = usableCards.find(c=>c.fn==="shaohui");
+  const shao = usableCards.some(c=>c.fn==="shaohui") ? aiPickFnCard(p,"shaohui") : null;
   const burnTargets = G.players.filter(q=>q.alive && countColor(q,"black")>0);
   if((shao||canSkill) && burnTargets.length){
     let target=null;
@@ -941,7 +962,7 @@ async function aiPlayPhaseStep(p, usableCards, canSkill){
     }
   }
   // 2) 试探：概率使用，选择身份最不明的玩家
-  const st = usableCards.find(c=>c.fn==="shitan");
+  const st = usableCards.some(c=>c.fn==="shitan") ? aiPickFnCard(p,"shitan") : null;
   if(st && p.hand.length>1 && Math.random()<0.45){
     const cands = G.players.filter(q=>q.alive && q!==p && !q.revealed && !q.hint);
     if(cands.length){
@@ -1265,7 +1286,8 @@ async function offerAt(q, isZhida){
         return "pass";
       }
       if(act==="poyi"){
-        const pc=q.hand.find(c=>c.fn==="poyi");
+        const pc=await chooseFnCard(q,"poyi","破译");
+        if(!pc) continue;
         discardFromHand(q,pc);
         tr.knownTo.add(q.i);
         log(`你使用【破译】偷看：这是一张 ${colorSpan(tr.card.color)}。`,"hl");
@@ -1281,7 +1303,8 @@ async function offerAt(q, isZhida){
         continue;
       }
       if(act==="diaobao"){
-        const dc=q.hand.find(c=>c.fn==="diaobao");
+        const dc=await chooseFnCard(q,"diaobao","调包");
+        if(!dc) continue;
         const sub=await pickHandCardCancellable(c=>c!==dc,
           "选择一张手牌换入传递（原情报进你手牌）…");
         if(!sub) continue;             // 撤回：不弃调包牌
@@ -1303,7 +1326,8 @@ async function offerAt(q, isZhida){
         return {redirectTo:t};
       }
       if(act==="wudao"){
-        const wc=q.hand.find(c=>c.fn==="wudao");
+        const wc=await chooseFnCard(q,"wudao","误导");
+        if(!wc) continue;
         const adj=adjAlive(q);
         const t=await ask("误导：改传给哪位邻座？",
           [...adj.map(a=>({label:a.name,value:a})), {label:"↩ 取消",value:null,warn:true}]);
@@ -1336,7 +1360,8 @@ async function doDiaobao(q, sub){
   if(me.human && q!==me && (tr.faceUp || tr.knownTo.has(0))){
     G.humanClues.push({targetI:q.i, text:`第${G.round}轮 调包拿走了一张${COLOR_NAME[old.color]}情报（藏在手里）`});
   }
-  const idx=q.hand.indexOf(sub); q.hand.splice(idx,1);
+  const idx=q.hand.indexOf(sub);
+  if(idx>=0) q.hand.splice(idx,1);   // 防御：换入牌必须还在手里，避免误删他牌
   q.hand.push(old);
   tr.card=sub;
   tr.knownTo=new Set([q.i]);
@@ -1366,7 +1391,7 @@ async function aiOffer(q, isZhida){
   // 想偷看吗
   if(!known && !tr.faceUp){
     const canSkillView = q.char.key==="liningyu" && !q.turnUsed.viewSkill;
-    const pc = q.hand.find(c=>c.fn==="poyi");
+    const pc = aiPickFnCard(q,"poyi");
     if(canSkillView || (pc && Math.random()<0.7)){
       if(canSkillView){ q.turnUsed.viewSkill=true; revealChar(q); log(`${pname(q)} 发动【译电】偷看了这张情报。`); }
       else { discardFromHand(q,pc); log(`${pname(q)} 使用【破译】偷看了这张情报。`); }
@@ -1383,7 +1408,7 @@ async function aiOffer(q, isZhida){
       if(collector && countColor(q,"black")===0 && myBlacks<2 && Math.random()<0.6) return "accept";
       if(hoarder && myBlacks<2 && q.intel.length>=3 && Math.random()<0.4) return "accept";
       // 调包把黑牌塞进手里？不要。误导（或太极）塞给快死的邻座
-      const wc=q.hand.find(c=>c.fn==="wudao");
+      const wc=aiPickFnCard(q,"wudao");
       const canEmf=q.char.key==="emeifeng" && !q.turnUsed.emf;
       if((wc||canEmf) && tr.redirects<2){
         const adj=adjAlive(q).filter(a=>a.i!==tr.sender && countColor(a,"black")>=2 && aiIsLikelyEnemy(q,a));
@@ -1414,8 +1439,8 @@ async function aiOffer(q, isZhida){
     if(collector && countColor(q,known)===0 && Math.random()<0.7) return "accept";
     if(hoarder && Math.random()<0.5) return "accept";
     // 调包：把这张好牌收进手里，换出一张黑牌继续传
-    const dc=q.hand.find(c=>c.fn==="diaobao");
-    const junk=q.hand.find(c=>c.color==="black");
+    const dc=aiPickFnCard(q,"diaobao");
+    const junk=q.hand.find(c=>c!==dc && c.color==="black");
     if(dc && junk && oc && known===enemyColorOf(q) && Math.random()<0.55){
       discardFromHand(q,dc);
       await doDiaobao(q, junk);
@@ -1442,7 +1467,7 @@ async function interceptWindow(receiver){
   const tr=G.transit;
   let cur=receiver, guard=0;
   while(guard++<5){
-    let intercepted=null;
+    let intercepted=null, jc=null;
     const others = seatsFrom(cur,"cw").filter(q=>q.alive);
     for(const q of others){
       if(!q.hand.some(c=>c.fn==="jiehuo")) continue;
@@ -1451,13 +1476,15 @@ async function interceptWindow(receiver){
         const yes = await ask(
           `${cur.name} 即将收下这张情报${known?`（${COLOR_NAME[known]}）`:"（颜色未知）"}，是否使用【截获】？`,
           [{label:"截获！由我收下",value:true},{label:"不使用",value:false}]);
-        if(yes){ intercepted=q; break; }
+        if(yes){
+          jc = await chooseFnCard(q,"jiehuo","截获");
+          if(jc){ intercepted=q; break; }   // 选牌时取消视为放弃截获
+        }
       } else {
-        if(aiWantIntercept(q,cur)){ intercepted=q; break; }
+        if(aiWantIntercept(q,cur)){ intercepted=q; jc=aiPickFnCard(q,"jiehuo"); break; }
       }
     }
-    if(!intercepted) break;
-    const jc=intercepted.hand.find(c=>c.fn==="jiehuo");
+    if(!intercepted || !jc) break;
     discardFromHand(intercepted,jc);
     log(`${pname(intercepted)} 使用【截获】——情报改由其收下！`,"warn");
     evt({type:"intercept", actor:intercepted.i, color:tr.card.color});
