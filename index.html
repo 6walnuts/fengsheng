@@ -1249,7 +1249,7 @@ async function runTransit(sender, card, mode, param){
   receiver = await interceptWindow(receiver);
 
   hideToken();
-  await gainIntel(receiver, card);
+  await gainIntel(receiver, tr.card);  // 用 tr.card：调包可能已把传递中的牌换掉
   G.transit=null;
   render();
 }
