@@ -54,6 +54,7 @@
     font-size:18px;cursor:pointer;font-family:inherit;
   }
   .pcount button.sel{background:var(--brass);color:#171310;border-color:var(--brass);font-weight:700}
+  .fpick button{width:auto;padding:0 14px;font-size:14px}
   .btn{
     border:1px solid var(--brass);background:transparent;color:var(--brass);
     padding:10px 34px;font-size:16px;letter-spacing:.3em;text-indent:.3em;cursor:pointer;font-family:inherit;
@@ -284,6 +285,8 @@
   <div class="start-box">
     <label>选择人数（你 + AI）</label>
     <div class="pcount" id="pcountRow"></div>
+    <label>选择身份</label>
+    <div class="pcount fpick" id="fpickRow"></div>
     <button class="btn" id="btnStart">潜 入</button>
     <button class="btn small" id="btnHelp0">游戏规则</button>
     <div id="statsLine" style="font-size:11px;color:var(--text-dim);letter-spacing:.05em"></div>
@@ -486,8 +489,12 @@ function buildDeck(){
 /* ---------- 游戏状态 ---------- */
 let G = null;
 
-function newGame(n){
+function newGame(n, wantFaction){
   const facs = shuffle(factionSetup(n).slice());
+  if(wantFaction){
+    const k = facs.indexOf(wantFaction);            // 各人数配置下三阵营均至少 1 名
+    if(k>0) [facs[0],facs[k]]=[facs[k],facs[0]];
+  }
   const chars = shuffle(CHARS.slice()).slice(0,n);
   const codes = shuffle(CODENAMES.slice());
   const players = [];
@@ -1748,7 +1755,7 @@ function endGame(winners, text){
 }
 
 /* ---------- 入口/界面接线 ---------- */
-let chosenN = 6;
+let chosenN = 6, chosenFaction = null;
 function initStart(){
   const row=$("#pcountRow");
   [4,5,6,7,8].forEach(n=>{
@@ -1757,6 +1764,14 @@ function initStart(){
     if(n===chosenN) b.classList.add("sel");
     b.onclick=()=>{ chosenN=n; row.querySelectorAll("button").forEach(x=>x.classList.remove("sel")); b.classList.add("sel"); };
     row.appendChild(b);
+  });
+  const frow=$("#fpickRow");
+  [[null,"随机"],["QF","潜伏战线"],["JQ","军情处"],["JY","打酱油"]].forEach(([v,label])=>{
+    const b=document.createElement("button");
+    b.textContent=label;
+    if(v===chosenFaction) b.classList.add("sel");
+    b.onclick=()=>{ chosenFaction=v; frow.querySelectorAll("button").forEach(x=>x.classList.remove("sel")); b.classList.add("sel"); };
+    frow.appendChild(b);
   });
   $("#btnStart").onclick=startGame;
   $("#btnHelp0").onclick=()=>$("#helpOverlay").classList.add("on");
@@ -1804,7 +1819,7 @@ function startGame(){
   $("#gameScreen").classList.add("on");
   $("#logBody").innerHTML="";
   $("#myIdentity").innerHTML="";
-  newGame(chosenN);
+  newGame(chosenN, AUTOTEST? null : chosenFaction);
   const me=G.players[0];
   if(me.human){
     let t=`本局你是【${FACTION_NAME[me.faction]}】`;
