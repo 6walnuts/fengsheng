@@ -137,6 +137,91 @@ const scenarios = [
     return { ok: final === b && !a.hand.some(c => c.id === 9301) && !b.hand.some(c => c.id === 9302),
              got: { finalSeat: final.i, aSpent: !a.hand.some(c => c.id === 9301), bSpent: !b.hand.some(c => c.id === 9302) } };
   }],
+
+  ['拓展牌库：99张、含威逼/利诱/双色、守恒基准更新', async () => {
+    newGame(6, null, true);
+    G.players.forEach(p => p.human = false);
+    const all = [...G.deck, ...G.players.flatMap(p => p.hand)];
+    const wb = all.filter(c => c.fn === "weibi").length;
+    const ly = all.filter(c => c.fn === "liyou").length;
+    const du = all.filter(c => c.color2).length;
+    const cs = cardCensus();
+    return { ok: G.totalCards === 99 && wb === 6 && ly === 6 && du === 6
+              && cs.total === 99 && cs.expect === 99 && cs.dup === 0,
+             got: { total: G.totalCards, wb, ly, du, census: cs } };
+  }],
+
+  ['威逼：目标AI交出手牌（黑牌优先），牌守恒', async () => {
+    newGame(6, null, true);
+    G.players.forEach(p => p.human = false);
+    const p = G.players[1], t = G.players[2];
+    const wb = G.deck.pop(); wb.fn = "weibi"; wb.color = "red"; wb.color2 = undefined;
+    p.hand.push(wb);
+    t.hand.forEach(c => { c.color = "red"; c.color2 = undefined; });
+    const bk = G.deck.pop(); bk.color = "black"; bk.color2 = undefined; t.hand.push(bk);
+    const ph = p.hand.length, th = t.hand.length;
+    await resolveWeibi(p, wb, t);
+    const cs = cardCensus();
+    return { ok: p.hand.some(c => c === bk) && t.hand.length === th - 1
+              && p.hand.length === ph  // -威逼牌 +得到一张
+              && cs.total === cs.expect && cs.dup === 0,
+             got: { gotBlack: p.hand.some(c => c === bk), pHand: p.hand.length - ph, census: cs } };
+  }],
+
+  ['利诱：展示牌库顶两张，双方各得一张，守恒', async () => {
+    newGame(6, null, true);
+    G.players.forEach(p => p.human = false);
+    const p = G.players[1], t = G.players[2];
+    const ly = G.deck.pop(); ly.fn = "liyou"; ly.color = "blue"; ly.color2 = undefined;
+    p.hand.push(ly);
+    const ph = p.hand.length, th = t.hand.length, dk = G.deck.length;
+    await resolveLiyou(p, ly, t);
+    const cs = cardCensus();
+    return { ok: p.hand.length === ph && t.hand.length === th + 1 && G.deck.length === dk - 2
+              && cs.total === cs.expect && cs.dup === 0,
+             got: { pHand: p.hand.length - ph, tHand: t.hand.length - th, deck: dk - G.deck.length, census: cs } };
+  }],
+
+  ['双色红黑：2黑再收红黑双色 → 第三黑致死', async () => {
+    newGame(6, null, true);
+    G.players.forEach(p => p.human = false);
+    const p = G.players[1];
+    p.char = { key: "guxiaomeng", name: "顾晓梦", covert: false, skill: "" };
+    p.faction = "QF"; p.mission = null;
+    const b1 = G.deck.pop(), b2 = G.deck.pop(), d = G.deck.pop();
+    b1.color = b2.color = "black"; b1.color2 = b2.color2 = undefined;
+    d.color = "red"; d.color2 = "black";
+    p.intel.push(b1, b2);
+    await gainIntel(p, d);
+    return { ok: !p.alive && p.revealed, got: { alive: p.alive } };
+  }],
+
+  ['双色红蓝：2红再收红蓝双色 → 计入红色，潜伏获胜', async () => {
+    newGame(6, null, true);
+    G.players.forEach(p => p.human = false);
+    const p = G.players[1];
+    p.faction = "QF"; p.mission = null;
+    const r1 = G.deck.pop(), r2 = G.deck.pop(), d = G.deck.pop();
+    r1.color = r2.color = "red"; r1.color2 = r2.color2 = undefined;
+    d.color = "red"; d.color2 = "blue";
+    p.intel.push(r1, r2);
+    await gainIntel(p, d);
+    return { ok: G.over && G.winText.includes("潜伏"), got: { over: G.over, text: G.winText } };
+  }],
+
+  ['双面间谍：红蓝双色同时计入两色 → 任务达成', async () => {
+    newGame(6, null, true);
+    G.players.forEach(p => p.human = false);
+    const p = G.players[1];
+    p.faction = "JY"; p.mission = { key: "double", name: "双面间谍" };
+    const r = G.deck.pop(), b = G.deck.pop(), d = G.deck.pop();
+    r.color = "red"; r.color2 = undefined; b.color = "blue"; b.color2 = undefined;
+    d.color = "red"; d.color2 = "blue";
+    p.intel.push(r, b);
+    await gainIntel(p, d);
+    return { ok: G.over && G.winners.length === 1 && G.winText.includes("双面间谍"),
+             got: { over: G.over, text: G.winText } };
+  }],
 ];
 
 (async () => {
@@ -167,7 +252,7 @@ const scenarios = [
     done = await p.evaluate('window.__autotestDone === true').catch(() => false);
   }
   const ce = await p.evaluate('window.__censusError || null');
-  if (done && !ce && censusErrs.length === 0) { console.log('✓ 30 局全 AI：全部完成，牌数守恒 81/81，无重复'); pass++; }
+  if (done && !ce && censusErrs.length === 0) { console.log('✓ 30 局全 AI：全部完成，守恒校验全部通过（81/99 混合基准）'); pass++; }
   else { console.log('✗ 守恒/完成异常: done=' + done, JSON.stringify(ce), censusErrs.slice(0, 3)); fail++; }
   console.log(`\n结果: ${pass} 通过 / ${fail} 失败`);
   await browser.close();
