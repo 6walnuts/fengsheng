@@ -75,8 +75,12 @@
 
 ## 开发者
 
-自动化测试：URL 加 `?autotest=N` 会以全 AI 快速连打 N 局并把结果写入
-`window.__allResults`（用于回归测试）。
+- **回归模式**：URL 加 `?autotest=N` 以全 AI 快速连打 N 局，结果写入
+  `window.__allResults`
+- **守恒看门狗**：引擎每回合校验全场恰为 81 张牌且无重复 id，
+  异常会写入日志与 `window.__censusError`（防复制/丢牌类 bug）
+- **场景测试组**：`node tests/battery.js`（需 Playwright + Chromium），
+  覆盖技能结算、酱油任务、死亡流程、调包/截获链、牌库重洗与 30 局守恒
 
 ## 规则参考资料
 

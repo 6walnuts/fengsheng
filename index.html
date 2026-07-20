@@ -896,6 +896,15 @@ function knownColorTo(p){ // 传递中的牌，p 是否知道颜色
 }
 
 /* ---------- 回合主循环 ---------- */
+/* 牌数守恒校验：全场应恒为 81 张且无重复（复制/丢失类 bug 的看门狗） */
+function cardCensus(){
+  const seen=new Set(); let total=0, dup=0;
+  const scan=c=>{ total++; if(seen.has(c.id)) dup++; seen.add(c.id); };
+  G.deck.forEach(scan); G.discard.forEach(scan);
+  G.players.forEach(p=>{ p.hand.forEach(scan); p.intel.forEach(scan); });
+  if(G.transit) scan(G.transit.card);
+  return { total, dup };
+}
 async function runGame(){
   const myGen=GEN;
   render();
@@ -906,6 +915,13 @@ async function runGame(){
       if(G.turn<=lastTurnIdx) G.round++; // 座位序回绕视为新一轮（0号位死亡也照常计轮）
       lastTurnIdx=G.turn;
       await doTurn(p);
+      const cs=cardCensus();
+      if(cs.total!==81 || cs.dup>0){
+        log(`⚠ 内部校验异常：全场 ${cs.total}/81 张，重复 ${cs.dup} 张`,"warn");
+        console.error("[CENSUS]", JSON.stringify(cs));
+        window.__censusError = cs;
+      }
+      if(AUTOTEST) await new Promise(r=>setTimeout(r,0)); // 让出事件循环，避免微任务饿死页面
       if(G.over || myGen!==GEN) break;
     }
     G.turn = nextAliveIdx(G.turn);
