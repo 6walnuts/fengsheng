@@ -78,6 +78,14 @@
   #topbar .title b{color:var(--seal)}
   #topbar .spacer{flex:1}
   #deckInfo{color:var(--text-dim);font-size:12px}
+  #factionBar{display:flex;align-items:center;gap:12px;font-size:11px;color:var(--text-dim)}
+  #factionBar .fgroup{display:flex;align-items:center;gap:3px}
+  #factionBar .flabel{margin-right:2px;letter-spacing:.05em}
+  #factionBar .fdot{width:10px;height:10px;border-radius:2px;border:1px solid rgba(255,255,255,.18)}
+  #factionBar .fdot.QF{background:var(--seal)}
+  #factionBar .fdot.JQ{background:var(--intel-blue)}
+  #factionBar .fdot.JY{background:#a08544}
+  #factionBar .fdot.dead{background:#3c4250;border-color:#565e6e}
 
   #tableArea{position:absolute;top:44px;left:0;right:280px;bottom:198px}
   #tableFelt{
@@ -237,6 +245,9 @@
     #myIdentity{font-size:11px}
     #myIdentity .idtail{display:none}
     #deckInfo,#btnSpeed{display:none}
+    #factionBar{gap:7px}
+    #factionBar .flabel{display:none}
+    #factionBar .fdot{width:8px;height:8px}
     #btnLog{display:inline-block !important}
     #tableArea{bottom:176px}
     #bottomDock{height:176px}
@@ -285,6 +296,7 @@
     <div class="title kai"><b>风</b>声</div>
     <div id="myIdentity"></div>
     <div class="spacer"></div>
+    <div id="factionBar" title="本局阵营配置：彩色为存活，灰色为出局"></div>
     <div id="deckInfo"></div>
     <button class="btn small" id="btnLog" style="display:none">记录</button>
     <button class="btn small" id="btnSpeed">速度：正常</button>
@@ -606,6 +618,17 @@ function factionBadge(p, forceReveal){
 function render(){
   if(!G) return;
   $("#deckInfo").textContent = `牌库 ${G.deck.length} · 弃牌 ${G.discard.length} · 第 ${G.round} 轮`;
+  // 阵营配置：总数公开；死亡会亮身份，故按阵营灰显出局者
+  let fb="";
+  for(const f of ["QF","JQ","JY"]){
+    const members=G.players.filter(p=>p.faction===f);
+    if(!members.length) continue;
+    const dead=members.filter(p=>!p.alive).length;
+    fb+=`<span class="fgroup"><span class="flabel">${FACTION_NAME[f]}</span>`+
+        `<span class="fdot ${f}"></span>`.repeat(members.length-dead)+
+        `<span class="fdot dead"></span>`.repeat(dead)+`</span>`;
+  }
+  $("#factionBar").innerHTML=fb;
   const me=G.players[0];
   if(me.human){
     let t = `你的身份：${factionBadge(me,true)}`;
