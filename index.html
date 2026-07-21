@@ -932,7 +932,7 @@ function factionBadge(p, forceReveal){
     if(p.faction==="JY" && (p.human||p.revealed||G.over)) t += p.mission? "·"+p.mission.name : "";
     return `<span class="badge ${p.faction}">${t}</span>`;
   }
-  if(p.hint) return `<span class="badge unknown">线索:${FACTION_NAME[p.hint]}</span>`;
+  if(p.hint) return `<span class="badge ${p.hint}">${FACTION_NAME[p.hint]} ✓</span>`;
   if(p.excluded && p.excluded.length)
     return `<span class="badge unknown">${p.excluded.map(f=>"非"+FACTION_NAME[f].slice(0,2)).join("·")}</span>`;
   return `<span class="badge unknown">身份？</span>`;
@@ -971,7 +971,8 @@ function render(){
     d.id="seat-"+p.i;
     const chips = p.intel.map(c=>`<span class="chip ${c.color}${c.color2?" d2-"+c.color2:""}"></span>`).join("");
     const charLine = (p.charRevealed || p.human)
-      ? `<b style="color:var(--paper-dim)">${p.char.name}${p.charRevealed?"":"（暗置）"}</b> ${p.char.skill}`
+      ? `<b style="color:var(--paper-dim)">${p.char.name}${p.charRevealed?"":"（暗置）"}</b> ${p.char.skill}`+
+        `<span style="color:#8a7a55">〔酱油任务·${missionOfChar(p.char.key).name}〕</span>`
       : `<b style="color:#5d6675">暗置角色</b> 技能未知，触发时公开`;
     d.innerHTML = `
       ${p.alive?"":'<div class="s-dead-mark">殁</div>'}
@@ -1123,7 +1124,8 @@ function showClues(p){
     $("#clueTitle").textContent="你的身份";
     $("#clueBody").innerHTML=`<div class="clue-item strong">${FACTION_NAME[p.faction]}${p.faction==="JY"?"·"+p.mission.name:""}</div>
       <div class="clue-item">${p.faction==="JY"?p.mission.desc:`集齐三张${p.faction==="QF"?"红":"蓝"}色情报即获胜。`}</div>
-      <div class="clue-item">角色技能：${p.char.skill}</div>`;
+      <div class="clue-item">角色技能：${p.char.skill}</div>
+      <div class="clue-item">角色绝密任务（你为酱油时的胜利条件）：「${missionOfChar(p.char.key).name}」${missionOfChar(p.char.key).desc}</div>`;
   } else {
     $("#clueTitle").textContent=`关于 ${p.name} 的情报`;
     const knownF = p.revealed? p.faction : p.hint;
@@ -1137,6 +1139,7 @@ function showClues(p){
     let html=`<div class="clue-item" style="padding:8px 0">${fRow}</div>
       <div class="clue-item strong">${p.revealed?`身份已公开：${FACTION_NAME[p.faction]}${p.faction==="JY"?"·"+p.mission.name:""}`:`推测：${tendencyOf(p)}`}</div>
       <div class="clue-item">${p.charRevealed?`角色：${p.char.name}——${p.char.skill}`:"角色：暗置，技能未知（首次触发时公开）"}</div>
+      <div class="clue-item">${p.charRevealed?`若为酱油，其绝密任务是「${missionOfChar(p.char.key).name}」：${missionOfChar(p.char.key).desc}`:"绝密任务：随角色暗置，翻开后可见"}</div>
       <div class="clue-item">${zone} · 手牌 ${p.hand.length} 张</div>`;
     const clues=cluesFor(p).slice(-12);
     if(clues.length) html+=clues.map(c=>`<div class="clue-item${c.strong?" strong":""}">${c.text}</div>`).join("");
