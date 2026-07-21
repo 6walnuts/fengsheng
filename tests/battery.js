@@ -127,7 +127,7 @@ const scenarios = [
   }],
 
   ['连环截获（后发先至）：两次截获后由最后出牌者收下', async () => {
-    G.players.forEach(p => { p.human = false; p.hand = p.hand.filter(c => c.fn !== "jiehuo"); });
+    G.players.forEach(p => { p.human = false; p.hand = p.hand.filter(c => c.fn !== "jiehuo" ? true : (G.discard.push(c), false)); });
     const a = G.players[2], b = G.players[3];
     a.hand.push({ id: 9301, color: "blue", mark: "zhida", fn: "jiehuo" });
     b.hand.push({ id: 9302, color: "blue", mark: "zhida", fn: "jiehuo" });
@@ -267,22 +267,22 @@ const scenarios = [
              got: { alive: p.alive, blacks: countColor(p, "black"), uses: p.yjsUses } };
   }],
 
-  ['守夜人+老会计：他人死亡守夜人摸2；老会计死亡令人弃2', async () => {
-    newGame(6, null, { archive: true });
-    G.players.forEach(p => p.human = false);
+  ['守夜人+老会计：他人死亡守夜人摸2+现身1；老会计令一人弃2', async () => {
+    G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
     const dead = G.players[1], watcher = G.players[2];
     dead.char = { key: "laokuaiji", name: "老会计", covert: true, skill: "清账" };
     dead.faction = "QF"; dead.mission = null;
     watcher.char = { key: "shouyeren", name: "守夜人", covert: true, skill: "守灵" };
     watcher.charRevealed = false;
     const wh = watcher.hand.length;
-    const handsBefore = G.players.filter(q => q !== dead && q !== watcher && q.alive).map(q => q.hand.length);
+    const others = G.players.filter(q => q !== dead && q !== watcher && q.alive);
+    const handsBefore = others.map(q => q.hand.length);
     await killPlayer(dead);
-    const handsAfter = G.players.filter(q => q !== dead && q !== watcher && q.alive).map(q => q.hand.length);
-    const someoneLost2 = handsAfter.some((h, i) => handsBefore[i] - h === 2) || watcher.hand.length === wh; // 老会计可能选守夜人
-    return { ok: !dead.alive && watcher.charRevealed && (watcher.hand.length >= wh)
-              && (someoneLost2 || watcher.hand.length === wh + 2 - 2),
-             got: { watcherDrew: watcher.hand.length - wh, handsBefore, handsAfter } };
+    const watcherDelta = watcher.hand.length - wh;   // 守灵2+现身1=+3；若被清账指名则 +1
+    const lost2 = others.filter((q, i) => handsBefore[i] - q.hand.length === 2).length;
+    const ok = !dead.alive && watcher.charRevealed
+      && ((watcherDelta === 3 && lost2 === 1) || watcherDelta === 1);
+    return { ok, got: { watcherDelta, lost2, alive: dead.alive } };
   }],
 
   ['纵火狂：烧毁第3张黑色情报 → 单独获胜', async () => {
@@ -360,7 +360,7 @@ const scenarios = [
   ['锁定：被锁定的AI即使暗置黑牌也被迫接收', async () => {
     G.players.forEach(p => p.human = false);
     const q = G.players[2];
-    q.intel.length = 0; q.hand = q.hand.filter(c => c.fn !== "poyi" && c.fn !== "diaobao");
+    q.intel.length = 0; q.hand = q.hand.filter(c => (c.fn !== "poyi" && c.fn !== "diaobao") ? true : (G.discard.push(c), false));
     const b = G.deck.pop(); b.color = "black"; b.color2 = undefined;
     G.transit = { id: 95, card: b, sender: 1, mode: "midian", dir: "cw", faceUp: false,
                   pos: q.i, knownTo: new Set([1]), locked: new Set([q.i]), banned: new Set(),
@@ -402,7 +402,7 @@ const scenarios = [
     G.players.forEach(p => p.human = false);
     aiAnnounce = () => null; aiWantIntercept = () => false;
     const sender = G.players[1], victim = G.players[2];
-    victim.hand = victim.hand.filter(c => c.fn !== "poyi" && c.fn !== "diaobao");
+    victim.hand = victim.hand.filter(c => (c.fn !== "poyi" && c.fn !== "diaobao") ? true : (G.discard.push(c), false));
     G.pendingLocks = [victim.i];
     const b = G.deck.pop(); b.color = "black"; b.color2 = undefined; b.mark = "zhida"; b.fn = "none";
     sender.hand.push(b);
@@ -413,7 +413,7 @@ const scenarios = [
   }],
 
   ['真伪莫辨：每名存活玩家分得一张必收，守恒', async () => {
-    G.players.forEach(p => { p.human = false; p.hand = p.hand.filter(c => c.fn !== "shipo"); });
+    G.players.forEach(p => { p.human = false; p.hand = p.hand.filter(c => c.fn !== "shipo" ? true : (G.discard.push(c), false)); });
     const p = G.players[1];
     const zw = G.deck.pop(); zw.fn = "zhenwei"; zw.color = "red"; zw.color2 = undefined;
     p.hand.push(zw);
@@ -427,7 +427,7 @@ const scenarios = [
   }],
 
   ['识破：反制后真伪莫辨完全无效，无人得牌', async () => {
-    G.players.forEach(p => { p.human = false; p.hand = p.hand.filter(c => c.fn !== "shipo"); });
+    G.players.forEach(p => { p.human = false; p.hand = p.hand.filter(c => c.fn !== "shipo" ? true : (G.discard.push(c), false)); });
     const p = G.players[1], counter = G.players[2];
     const zw = G.deck.pop(); zw.fn = "zhenwei"; zw.color = "red"; zw.color2 = undefined;
     const sp = G.deck.pop(); sp.fn = "shipo"; sp.color = "blue"; sp.color2 = undefined;
@@ -448,7 +448,7 @@ const scenarios = [
   }],
 
   ['识破试探：目标被试探但反制成功 → 不弃牌不留线索', async () => {
-    G.players.forEach(p => { p.human = false; p.hand = p.hand.filter(c => c.fn !== "shipo"); });
+    G.players.forEach(p => { p.human = false; p.hand = p.hand.filter(c => c.fn !== "shipo" ? true : (G.discard.push(c), false)); });
     const prober = G.players[1], t = G.players[2];
     t.faction = "QF"; t.hint = null;
     t.char = { key: "guxiaomeng", name: "顾晓梦", covert: false, skill: "" };
@@ -463,7 +463,7 @@ const scenarios = [
   }],
 
   ['双识破连锁：识破被再识破 → 试探恢复生效', async () => {
-    G.players.forEach(p => { p.human = false; p.hand = p.hand.filter(c => c.fn !== "shipo"); });
+    G.players.forEach(p => { p.human = false; p.hand = p.hand.filter(c => c.fn !== "shipo" ? true : (G.discard.push(c), false)); });
     const prober = G.players[1], t = G.players[2], helper = G.players[3];
     t.faction = "QF"; t.hint = null;
     t.char = { key: "guxiaomeng", name: "顾晓梦", covert: false, skill: "" };
@@ -476,6 +476,27 @@ const scenarios = [
     await resolveShitan(prober, st, t);
     return { ok: t.hint === "QF",   // 试探最终生效，暴露潜伏身份
              got: { hint: t.hint } };
+  }],
+
+  ['经典模式：无黑名单牌与双色、81张、无宣告窗口牌', async () => {
+    newGame(6, null, { heimingdan: false });
+    G.players.forEach(p => p.human = false);
+    const all = [...G.deck, ...G.players.flatMap(p => p.hand)];
+    const bl = all.filter(c => ["suoding","diaohu","tuihui","zhenwei","shipo"].includes(c.fn)).length;
+    const du = all.filter(c => c.color2).length;
+    const cs = cardCensus();
+    return { ok: G.totalCards === 81 && bl === 0 && du === 0 && cs.total === 81 && cs.dup === 0
+              && G.exp.heimingdan === false,
+             got: { total: G.totalCards, blacklistCards: bl, dual: du } };
+  }],
+
+  ['默认开局：黑名单规则开启，含锁定/识破与双色', async () => {
+    newGame(6);
+    const all = [...G.deck, ...G.players.flatMap(p => p.hand)];
+    const bl = all.filter(c => ["suoding","diaohu","tuihui","zhenwei","shipo"].includes(c.fn)).length;
+    const du = all.filter(c => c.color2).length;
+    return { ok: G.exp.heimingdan === true && bl === 19 && du === 6,
+             got: { hmd: G.exp.heimingdan, blacklistCards: bl, dual: du } };
   }],
 ];
 

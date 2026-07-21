@@ -312,6 +312,8 @@
   <div class="start-box">
     <label>选择人数（你 + AI）</label>
     <div class="pcount" id="pcountRow"></div>
+    <label>黑名单规则（锁定/调虎离山/退回/识破/真伪莫辨/双色情报/双出牌阶段）</label>
+    <div class="pcount fpick" id="hmdRow"></div>
     <label>拓展包（点亮启用，可多选）</label>
     <div class="pcount fpick" id="expRow"></div>
     <label>选择身份</label>
@@ -373,7 +375,8 @@
     <p><b class="rule-k">回合流程</b>：摸两张牌 → <b>出牌阶段（一）</b> → 传递情报 → <b>出牌阶段（二）</b>。传递分三个窗口：<b>宣告时</b>可用【锁定】【调虎离山】【截获】；<b>到达某人面前时</b>可用【破译】【退回】【调包】；<b>决定接收时</b>不能再用任何牌。</p>
     <p><b class="rule-k">功能牌</b>：<b>锁定</b>——指定一名玩家，其必须接收本次情报（出牌阶段一或宣告时使用，优先于调虎离山）；<b>调虎离山</b>——指定一名玩家，其不能接收本次情报；<b>退回</b>——情报到你面前时反方向继续传递；<b>截获</b>——宣告时直接拉走情报，或他人即将收下时抢走；<b>破译</b>——偷看面朝下的情报；<b>调包</b>——弃此牌，从手牌任选一张换入传递，原情报收入手牌；<b>烧毁</b>——出牌阶段烧掉任意玩家一张黑色情报；<b>试探</b>——目标按真实身份执行牌上指令；<b>真伪莫辨</b>——每名存活玩家从牌库随机分得一张情报并必须接收；<b>识破</b>——抵销最新一张功能牌的效果，识破亦可被识破（连锁）。情报传递本身、传递方式与角色技能不可被识破；<b>平信</b>——无功能。</p>
     <p><b class="rule-k">绝密任务</b>：任务印在角色牌上——你的身份是打酱油时，胜利条件就是你角色自带的绝密任务。</p>
-    <p><b class="rule-k">双色情报</b>（基础牌）：红黑×3、蓝黑×3，同时计入两种颜色——红黑既算红也算黑；同时凑满制胜与三张黑时<b>先判死亡</b>。</p>
+    <p><b class="rule-k">黑名单规则</b>（默认开启，可关）：锁定/调虎离山/退回/识破/真伪莫辨五种功能牌、双色情报、传递宣告窗口与出牌阶段（二）均属黑名单版内容；关闭后为经典简化规则（81 张纯色牌库）。</p>
+    <p><b class="rule-k">双色情报</b>（黑名单牌）：红黑×3、蓝黑×3，同时计入两种颜色——红黑既算红也算黑；同时凑满制胜与三张黑时<b>先判死亡</b>。</p>
     <p><b class="rule-k">拓展包《危情》</b>（可选）：牌库加入【威逼】（迫使一名玩家交给你一张手牌）与【利诱】（展示牌库顶两张，目标先选一张、你得另一张）。</p>
     <p><b class="rule-k">拓展包《绝密行动》</b>（可选）：强化打酱油——任务池新增「纵火狂」（累计烧毁三张黑情报）、「劫收专员」（靠【截获】收下两张情报）、「完美中立」（第六轮结束时存活且无红蓝情报）；每名酱油开局获得一条「耳目密报」，得知一名玩家的真实身份。</p>
     <p><b class="rule-k">拓展包《绝密档案》</b>（可选）：角色池加入八位新角色——报童（号外）、裁缝（量体）、车夫（快马）、灰狐（匿影）、药剂师（解毒）、守夜人（守灵）、情妇（枕风）、老会计（清账）。</p>
@@ -550,16 +553,23 @@ function statsText(){
 
 /* ---------- 牌库 ---------- */
 let cardSeq = 0;
-function buildDeck(expansion){
+function buildDeck(weiqing, blacklist){
   const colors=[], marks=[], fns=[];
   const push=(arr,v,k)=>{ for(let i=0;i<k;i++) arr.push(v); };
-  push(colors,"red",23); push(colors,"blue",23); push(colors,"black",29);
-  push(colors,"red-black",3); push(colors,"blue-black",3);   // 双色情报（黑名单基础牌）
+  if(blacklist){
+    push(colors,"red",23); push(colors,"blue",23); push(colors,"black",29);
+    push(colors,"red-black",3); push(colors,"blue-black",3);   // 双色情报（黑名单牌）
+    push(fns,"jiehuo",12); push(fns,"poyi",12);
+    push(fns,"suoding",5); push(fns,"diaohu",4); push(fns,"tuihui",4);
+    push(fns,"zhenwei",3); push(fns,"shipo",3);
+    push(fns,"diaobao",10); push(fns,"shaohui",12); push(fns,"shitan",11); push(fns,"none",5);
+  } else {
+    // 经典模式：无黑名单功能牌与双色情报
+    push(colors,"red",25); push(colors,"blue",25); push(colors,"black",31);
+    push(fns,"jiehuo",14); push(fns,"poyi",15);
+    push(fns,"diaobao",12); push(fns,"shaohui",15); push(fns,"shitan",13); push(fns,"none",12);
+  }
   push(marks,"zhida",27); push(marks,"midian",27); push(marks,"wenben",27);
-  push(fns,"jiehuo",12); push(fns,"poyi",12);
-  push(fns,"suoding",5); push(fns,"diaohu",4); push(fns,"tuihui",4);
-  push(fns,"zhenwei",3); push(fns,"shipo",3);
-  push(fns,"diaobao",10); push(fns,"shaohui",12); push(fns,"shitan",11); push(fns,"none",5);
   shuffle(colors); shuffle(marks); shuffle(fns);
   const probeKeys=["A","B","C","D"]; let pi=0;
   const deck=[];
@@ -569,7 +579,7 @@ function buildDeck(expansion){
     if(c.fn==="shitan"){ c.probe=probeKeys[pi%4]; pi++; }
     deck.push(c);
   }
-  if(expansion){
+  if(weiqing){
     const mk=["zhida","midian","wenben"];
     let mi=0;
     const add=(color,color2,fn)=>{
@@ -588,7 +598,8 @@ function buildDeck(expansion){
 let G = null;
 
 function newGame(n, wantFaction, expansion){
-  const ex = (expansion && typeof expansion==="object")? expansion : {weiqing:!!expansion};
+  const ex = (expansion && typeof expansion==="object")? {...expansion} : {weiqing:!!expansion};
+  if(ex.heimingdan===undefined) ex.heimingdan=true;   // 黑名单规则默认开启
   const facs = shuffle(factionSetup(n).slice());
   if(wantFaction){
     const k = facs.indexOf(wantFaction);            // 各人数配置下三阵营均至少 1 名
@@ -615,7 +626,7 @@ function newGame(n, wantFaction, expansion){
   }
   G = {
     n, players, expansion: !!ex.weiqing, exp: ex,
-    deck: buildDeck(ex.weiqing), discard: [],
+    deck: buildDeck(ex.weiqing, ex.heimingdan), discard: [],
     turn: 0, round: 0, over:false,
     transit: null, transitSeq: 0,
     winners: [], winText:"",
@@ -740,7 +751,7 @@ function factionBadge(p, forceReveal){
 }
 function render(){
   if(!G) return;
-  const packs=[G.exp&&G.exp.weiqing?"危情":null, G.exp&&G.exp.action?"绝密行动":null, G.exp&&G.exp.archive?"绝密档案":null].filter(Boolean).join("+");
+  const packs=[G.exp&&!G.exp.heimingdan?"经典":"黑名单", G.exp&&G.exp.weiqing?"危情":null, G.exp&&G.exp.action?"绝密行动":null, G.exp&&G.exp.archive?"绝密档案":null].filter(Boolean).join("+");
   $("#deckInfo").textContent = `${packs? packs+" · ":""}牌库 ${G.deck.length} · 弃牌 ${G.discard.length} · 第 ${G.round} 轮`;
   // 阵营配置：总数公开；死亡会亮身份，故按阵营灰显出局者
   let fb="";
@@ -1123,9 +1134,11 @@ async function doTurn(p){
   await sendPhase(p);
   if(G.over || !p.alive) return;
 
-  // 出牌阶段（二）：传完情报还可以再出牌
-  setPhase(`${p.name} 的回合`,"出牌阶段（二）");
-  await playPhase(p, 2);
+  // 出牌阶段（二）：传完情报还可以再出牌（黑名单规则）
+  if(G.exp && G.exp.heimingdan){
+    setPhase(`${p.name} 的回合`,"出牌阶段（二）");
+    await playPhase(p, 2);
+  }
 }
 
 /* ---------- 出牌阶段 ---------- */
@@ -1706,8 +1719,8 @@ async function runTransit(sender, card, mode, param){
   render(); showToken(sender.i);
   await sleep(650);
 
-  // 传递宣告窗口：任何玩家可用【锁定】【调虎离山】【截获】
-  let receiver = await announceWindow(sender);
+  // 传递宣告窗口：任何玩家可用【锁定】【调虎离山】【截获】（黑名单规则）
+  let receiver = (G.exp && G.exp.heimingdan)? await announceWindow(sender) : null;
 
   if(!receiver){
     if(mode==="zhida"){
@@ -2540,7 +2553,7 @@ function wikiCardsHtml(){
       <tr><th>基础 81 张</th><td>颜色：红 23 / 蓝 23 / 黑 29 / 红黑双色 3 / 蓝黑双色 3　印章：直达 27 / 密电 27 / 文本 27</td></tr>
       <tr><th>危情 +12 张*</th><td>威逼 ×6、利诱 ×6（红蓝黑各2）</td></tr>
     </table>
-    <div class="wiki-note">带 * 的数量为《危情》拓展启用时加入。试探牌共四种指令（查潜伏 / 查军情 / 查酱油 / 甄别酱油）各占 1/4。收到三张黑色情报（含双色带黑）立即出局；双色情报同时凑满制胜与致死时，<b>先判死亡</b>（官方裁定）。</div>`;
+    <div class="wiki-note">锁定/调虎离山/退回/真伪莫辨/识破与双色情报属于黑名单规则（默认开启，可在开始界面关闭）。带 * 的数量为《危情》拓展启用时加入。试探牌共四种指令（查潜伏 / 查军情 / 查酱油 / 甄别酱油）各占 1/4。收到三张黑色情报（含双色带黑）立即出局；双色情报同时凑满制胜与致死时，<b>先判死亡</b>（官方裁定）。</div>`;
 }
 function wikiMissionsHtml(){
   const mrow=(m,tag)=>`<tr><td><b style="color:var(--paper-dim)">${m.name}</b>${tag?`<span class="wiki-tag pack">${tag}</span>`:""}</td><td>${m.desc}</td></tr>`;
@@ -2572,7 +2585,7 @@ function openWiki(){ renderWiki(); $("#wikiOverlay").classList.add("on"); }
 
 /* ---------- 入口/界面接线 ---------- */
 let chosenN = 6, chosenFaction = null;
-const chosenExp = { weiqing:false, action:false, archive:false };
+const chosenExp = { heimingdan:true, weiqing:false, action:false, archive:false };
 function initStart(){
   const row=$("#pcountRow");
   [4,5,6,7,8].forEach(n=>{
@@ -2581,6 +2594,14 @@ function initStart(){
     if(n===chosenN) b.classList.add("sel");
     b.onclick=()=>{ chosenN=n; row.querySelectorAll("button").forEach(x=>x.classList.remove("sel")); b.classList.add("sel"); };
     row.appendChild(b);
+  });
+  const hrow=$("#hmdRow");
+  [[true,"开启（推荐）"],[false,"关闭（经典）"]].forEach(([v,label])=>{
+    const b=document.createElement("button");
+    b.textContent=label;
+    if(v===chosenExp.heimingdan) b.classList.add("sel");
+    b.onclick=()=>{ chosenExp.heimingdan=v; hrow.querySelectorAll("button").forEach(x=>x.classList.remove("sel")); b.classList.add("sel"); };
+    hrow.appendChild(b);
   });
   const erow=$("#expRow");
   [["weiqing","危情"],["action","绝密行动"],["archive","绝密档案"]].forEach(([k,label])=>{
@@ -2675,8 +2696,8 @@ if(AUTOTEST){
       $("#logBody").innerHTML="";
       $("#overOverlay").classList.remove("on");
       chosenN = 4+Math.floor(Math.random()*5);
-      const combos=[{},{weiqing:true},{action:true,archive:true},{weiqing:true,action:true,archive:true}];
-      newGame(chosenN, null, combos[g%4]);
+      const combos=[{},{heimingdan:false},{weiqing:true},{heimingdan:false,action:true,archive:true},{weiqing:true,action:true,archive:true}];
+      newGame(chosenN, null, combos[g%5]);
       await runGame();
       window.__allResults.push(window.__gameResult);
     }
