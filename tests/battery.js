@@ -543,6 +543,35 @@ const scenarios = [
     return { ok: receiver === grabber && sender.hand.length === sh + 2 && sender.charRevealed,
              got: { receiver: receiver && receiver.i, senderDrew: sender.hand.length - sh, revealed: sender.charRevealed } };
   }],
+
+  ['试探否定排除：A探军情落空 → 排除潜伏并显示徽章', async () => {
+    G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
+    const prober = G.players[1], t = G.players[2];
+    t.faction = "JQ"; t.hint = null; t.excluded = [];
+    await probeOne(prober, { probe: "A" }, t);
+    const badge = factionBadge(t);
+    return { ok: t.excluded.includes("QF") && !t.hint && badge.includes("非潜伏"),
+             got: { excluded: t.excluded, hint: t.hint, badge } };
+  }],
+
+  ['两次排除推理闭环：非潜伏+非酱油 → 自动确认军情处', async () => {
+    G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
+    const prober = G.players[1], t = G.players[2];
+    t.faction = "JQ"; t.hint = null; t.excluded = [];
+    await probeOne(prober, { probe: "A" }, t);   // 不是潜伏
+    await probeOne(prober, { probe: "C" }, t);   // 不是酱油
+    return { ok: t.hint === "JQ" && t.excluded.length === 2,
+             got: { hint: t.hint, excluded: t.excluded } };
+  }],
+
+  ['试探D命中：展示手牌同时排除酱油', async () => {
+    G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
+    const prober = G.players[1], t = G.players[2];
+    t.faction = "QF"; t.hint = null; t.excluded = [];
+    await probeOne(prober, { probe: "D" }, t);
+    return { ok: t.excluded.includes("JY") && !t.hint,
+             got: { excluded: t.excluded, hint: t.hint } };
+  }],
 ];
 
 (async () => {

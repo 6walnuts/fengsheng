@@ -145,6 +145,9 @@
 
   /* 线索弹窗 */
   .clue-item{font-size:12px;color:var(--text-dim);padding:4px 0;border-bottom:1px dashed #2c3442;line-height:1.5}
+  .fchip{font-size:12px;padding:2px 10px}
+  .fchip.ex{opacity:.32;text-decoration:line-through;filter:grayscale(.6)}
+  .fchip.ok{outline:2px solid var(--brass);outline-offset:1px}
   .clue-item.strong{color:var(--brass)}
 
   /* 复盘时间线 */
@@ -678,7 +681,7 @@ function saveGame(){
         missionKey:p.mission? p.mission.key:null,
         charKey:p.char.key, charRevealed:p.charRevealed,
         hand:p.hand, intel:p.intel, alive:p.alive, revealed:p.revealed,
-        hint:p.hint, laoguiUsed:p.laoguiUsed, yjsUses:p.yjsUses,
+        hint:p.hint, excluded:p.excluded||[], laoguiUsed:p.laoguiUsed, yjsUses:p.yjsUses,
         burnCount:p.burnCount, grabCount:p.grabCount, privateHint:p.privateHint,
       })),
     };
@@ -930,6 +933,8 @@ function factionBadge(p, forceReveal){
     return `<span class="badge ${p.faction}">${t}</span>`;
   }
   if(p.hint) return `<span class="badge unknown">线索:${FACTION_NAME[p.hint]}</span>`;
+  if(p.excluded && p.excluded.length)
+    return `<span class="badge unknown">${p.excluded.map(f=>"非"+FACTION_NAME[f].slice(0,2)).join("·")}</span>`;
   return `<span class="badge unknown">身份？</span>`;
 }
 function render(){
@@ -1086,6 +1091,8 @@ function cluesFor(t){
   const nm=i=>G.players[i].name;
   if(t.hint) out.push({text:`【试探】证实：${FACTION_NAME[t.hint]}`, strong:true});
   for(const e of G.events){
+    if(e.type==="excluded" && e.targetI===t.i)
+      out.push({text:`第${e.round}轮 试探排除：不是${FACTION_NAME[e.faction]}`, strong:true});
     if(e.type==="declined" && e.who===t.i)
       out.push({text:`第${e.round}轮 拒收了明置的${COLOR_NAME[e.color]}情报`, strong:e.color!=="black"});
     if(e.type==="delivered" && e.fromI===t.i)
@@ -1119,8 +1126,16 @@ function showClues(p){
       <div class="clue-item">角色技能：${p.char.skill}</div>`;
   } else {
     $("#clueTitle").textContent=`关于 ${p.name} 的情报`;
+    const knownF = p.revealed? p.faction : p.hint;
+    const fRow = ["QF","JQ","JY"].map(f=>{
+      let cls="fchip";
+      if(knownF){ cls += f===knownF? " ok" : " ex"; }
+      else if(p.excluded && p.excluded.includes(f)) cls += " ex";
+      return `<span class="${cls} badge ${f}">${FACTION_NAME[f]}</span>`;
+    }).join(" ");
     const zone=`情报区：红×${countColor(p,"red")} 蓝×${countColor(p,"blue")} 黑×${countColor(p,"black")}`;
-    let html=`<div class="clue-item strong">${p.revealed?`身份已公开：${FACTION_NAME[p.faction]}${p.faction==="JY"?"·"+p.mission.name:""}`:`推测：${tendencyOf(p)}`}</div>
+    let html=`<div class="clue-item" style="padding:8px 0">${fRow}</div>
+      <div class="clue-item strong">${p.revealed?`身份已公开：${FACTION_NAME[p.faction]}${p.faction==="JY"?"·"+p.mission.name:""}`:`推测：${tendencyOf(p)}`}</div>
       <div class="clue-item">${p.charRevealed?`角色：${p.char.name}——${p.char.skill}`:"角色：暗置，技能未知（首次触发时公开）"}</div>
       <div class="clue-item">${zone} · 手牌 ${p.hand.length} 张</div>`;
     const clues=cluesFor(p).slice(-12);
@@ -1173,6 +1188,10 @@ function beliefQF(target){ // 越大越像潜伏，越小越像军情（仅使�
   if(target.hint==="QF") s+=6;
   if(target.hint==="JQ") s-=6;
   if(target.hint==="JY") s=0;
+  if(target.excluded){
+    if(target.excluded.includes("QF")) s-=6;
+    if(target.excluded.includes("JQ")) s+=6;
+  }
   // 拒收明置情报是强信号：拒红→不像潜伏，拒蓝→不像军情
   let dr=0;
   for(const e of G.events){
@@ -1761,6 +1780,19 @@ async function resolveShitan(p, card, presetTarget){
   await sleep(400);
 }
 
+/* 试探的否定结果：排除阵营；排除两个即可推理确认第三个 */
+function excludeFaction(t, f){
+  t.excluded = t.excluded||[];
+  if(t.excluded.includes(f) || t.hint || t.revealed) return;
+  t.excluded.push(f);
+  evt({type:"excluded", targetI:t.i, faction:f});
+  const rest=["QF","JQ","JY"].filter(x=>!t.excluded.includes(x));
+  if(rest.length===1){
+    t.hint=rest[0];
+    log(`两次排除推理确认：${pname(t)} 只能是【${FACTION_NAME[rest[0]]}】！`,"warn");
+    rep(`推理确认 ${t.name} = ${FACTION_NAME[rest[0]]}`,"warn");
+  }
+}
 async function probeOne(p, card, t){
   log(`${pname(p)} 对 ${pname(t)} 使用【试探】——「${PROBE_TEXTS[card.probe]}」`,"hl");
   rep(`${p.name} 试探 ${t.name}（${PROBE_TEXTS[card.probe].slice(0,9)}…）`);
@@ -1774,13 +1806,14 @@ async function probeOne(p, card, t){
   }
   if(card.probe==="C"){
     if(t.faction==="JY"){ drawCards(t,1); log(`${pname(t)} 摸了一张牌——他是打酱油的！`,"warn"); t.hint="JY"; }
-    else log(`${pname(t)} 没有反应（不是打酱油）。`);
+    else { log(`${pname(t)} 没有反应（不是打酱油）。`); excludeFaction(t,"JY"); }
   } else if(card.probe==="D"){
     if(t.faction==="QF"||t.faction==="JQ"){
       if(t.hand.length){
         const sc=rnd(t.hand);
         log(`${pname(t)} 展示了一张手牌：${cardColorLabel(sc)}·${FN_NAME[sc.fn]}——他不是打酱油的。`,"warn");
       } else log(`${pname(t)} 没有手牌可展示——但他不是打酱油的。`,"warn");
+      excludeFaction(t,"JY");
     } else {
       t.hint="JY";
       log(`${pname(t)} 没有反应——他是打酱油的！`,"warn");
@@ -1802,6 +1835,7 @@ async function probeOne(p, card, t){
       t.hint=fac;
     } else {
       log(`${pname(t)} 没有反应（不是${FACTION_NAME[fac]}）。`);
+      excludeFaction(t,fac);
     }
   }
   // 情妇·枕风：被试探后反制
