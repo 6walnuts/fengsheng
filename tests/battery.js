@@ -905,18 +905,32 @@ const scenarios = [
              got: { over: G.over, text: G.winText, winners: G.winners.map(x => x.name) } };
   }],
 
-  ['闪灵狙击+灭口：黑手牌塞死无真情报的玩家 → 单独获胜', async () => {
+  ['闪灵狙击：翻开烧毁他人至多三张任意情报（含真情报）', async () => {
     G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
     const p = G.players[1], t = G.players[2];
     p.char = QIANZHI_CHARS.find(c => c.key === "qz_shanling");
-    p.charRevealed = false; p.faction = "JY"; p.mission = MISSION_DEFS.killclean;
+    p.charRevealed = false;
+    const cs3 = [G.deck.pop(), G.deck.pop(), G.deck.pop()];
+    cs3[0].color = "red"; cs3[1].color = "blue"; cs3[2].color = "black";
+    cs3.forEach(c => c.color2 = undefined);
+    t.intel.push(...cs3);
+    await skillJuji(p, t, cs3.slice());
+    const cs = cardCensus();
+    return { ok: t.intel.length === 0 && p.charRevealed && cs.total === cs.expect && cs.dup === 0,
+             got: { left: t.intel.length, census: cs } };
+  }],
+
+  ['灭口：亲手致死无真情报的玩家 → 击杀者单独获胜', async () => {
+    G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
+    const killer = G.players[1], t = G.players[2];
+    killer.faction = "JY"; killer.mission = MISSION_DEFS.killclean;
     t.faction = "JQ"; t.mission = null;
-    const hb = G.deck.pop(); hb.color = "black"; hb.color2 = undefined; p.hand.push(hb);
     const b2 = [G.deck.pop(), G.deck.pop()];
     b2.forEach(c => { c.color = "black"; c.color2 = undefined; });
-    t.intel.push(...b2);   // 两黑、零真情报
-    await skillJuji(p, t, hb);
-    return { ok: !t.alive && G.over && G.winners.length === 1 && G.winners[0] === p && G.winText.includes("灭口"),
+    t.intel.push(...b2);
+    const b3 = G.deck.pop(); b3.color = "black"; b3.color2 = undefined;
+    await forceIntel(t, b3, killer.i);
+    return { ok: !t.alive && G.over && G.winners.length === 1 && G.winners[0] === killer && G.winText.includes("灭口"),
              got: { tAlive: t.alive, text: G.winText } };
   }],
 
@@ -1040,21 +1054,75 @@ const scenarios = [
              got: { tAlive: t.alive, netUsed: !sd.hand.includes(hb), census: cs } };
   }],
 
-  ['福尔摩斯偷天：第二张黑被手牌替换，免死留进度', async () => {
+  ['福尔摩斯细节：获得黑情报时追加一张手牌情报', async () => {
     G.players.forEach(p => p.human = false);
     const p = G.players[1];
     p.char = QIANZHI_CHARS.find(c => c.key === "q_fuermosi");
     p.faction = "QF"; p.mission = null;
     p.hand.forEach(c => { c.color = "red"; c.color2 = undefined; });
+    const r1 = G.deck.pop(); r1.color = "red"; r1.color2 = undefined;
+    p.intel.push(r1);   // 已有红色进度 → AI 触发细节
     const b1 = G.deck.pop(); b1.color = "black"; b1.color2 = undefined;
-    p.intel.push(b1);
-    const b2 = G.deck.pop(); b2.color = "black"; b2.color2 = undefined;
-    await gainIntel(p, b2);
+    await gainIntel(p, b1);
     const cs = cardCensus();
-    return { ok: p.alive && countColor(p, "black") === 1 && p.intel.length === 2
-              && p.onceUsed.toutian === true && G.discard.includes(b2)
+    return { ok: p.alive && countColor(p, "black") === 1 && p.intel.length === 3
+              && p.onceUsed.toutian === true && countColor(p, "red") === 2
               && cs.total === cs.expect && cs.dup === 0,
-             got: { blacks: countColor(p, "black"), intel: p.intel.length, census: cs } };
+             got: { blacks: countColor(p, "black"), reds: countColor(p, "red"), intel: p.intel.length, census: cs } };
+  }],
+
+  ['钢铁特工掩护：公开状态下获得情报自动盖伏', async () => {
+    G.players.forEach(p => p.human = false);
+    const p = G.players[1];
+    p.char = QIANZHI_CHARS.find(c => c.key === "q_gangtie");
+    p.charRevealed = true; p.faction = "QF"; p.mission = null;
+    const r = G.deck.pop(); r.color = "red"; r.color2 = undefined;
+    await gainIntel(p, r);
+    return { ok: p.charRevealed === false && countColor(p, "red") === 1,
+             got: { covered: !p.charRevealed } };
+  }],
+
+  ['临危受命：香水接过死者身份，死者身份成谜不计入两败俱伤', async () => {
+    G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
+    ["QF","JY","QF","JY","JQ","JQ"].forEach((f, i) => { G.players[i].faction = f; G.players[i].mission = f==="JY"? MISSION_DEFS.collect3 : null; });
+    const xs = G.players[1], victim = G.players[2], j = G.players[3];
+    xs.char = QIANZHI_CHARS.find(c => c.key === "q_xiangshui");
+    xs.mission = MISSION_DEFS.solealive;
+    j.mission = MISSION_DEFS.oneEach;
+    const bs = [G.deck.pop(), G.deck.pop(), G.deck.pop()];
+    bs.forEach(c => { c.color = "black"; c.color2 = undefined; });
+    victim.intel.push(...bs);
+    const _r = Math.random; Math.random = () => 0.3;
+    await killPlayer(victim, null);
+    Math.random = _r;
+    // 死一名军情：即便随后军情也死一人，QF 之死不计入两败俱伤
+    const v2 = G.players[4];
+    const bs2 = [G.deck.pop(), G.deck.pop(), G.deck.pop()];
+    bs2.forEach(c => { c.color = "black"; c.color2 = undefined; });
+    v2.intel.push(...bs2);
+    await killPlayer(v2, null);
+    return { ok: xs.faction === "QF" && victim.noIdentity === true && !victim.revealed && !G.over,
+             got: { xsFaction: xs.faction, noId: victim.noIdentity, over: G.over, text: G.winText } };
+  }],
+
+  ['贝雷帽偷天：黑直达被收下后取走受牌者一张情报入手', async () => {
+    G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
+    const bl = G.players[1], t = G.players[2];
+    bl.char = QIANZHI_CHARS.find(c => c.key === "qz_beleimao");
+    bl.faction = "QF"; bl.mission = null;
+    t.faction = "JQ"; t.mission = null; t.revealed = true;
+    const r = G.deck.pop(); r.color = "red"; r.color2 = undefined;
+    t.intel.push(r);
+    const c = G.deck.pop(); c.color = "black"; c.color2 = undefined;
+    const bh = bl.hand.length;
+    G.transit = { id: 86, card: c, sender: bl.i, mode: "zhida", dir: null, faceUp: false,
+                  pos: t.i, knownTo: new Set([bl.i]), locked: new Set(), banned: new Set(),
+                  offers: 0, tamperedBy: null };
+    await gainIntel(t, c);
+    G.transit = null;
+    const cs = cardCensus();
+    return { ok: bl.hand.includes(r) && !t.intel.includes(r) && cs.total === cs.expect && cs.dup === 0,
+             got: { stole: bl.hand.includes(r), census: cs } };
   }],
 
   ['小白收买：四张手牌换走他人一张情报', async () => {
