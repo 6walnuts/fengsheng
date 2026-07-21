@@ -430,6 +430,37 @@ const scenarios = [
     return { ok: countered ? gainedNone : true,  // 只要识破发生即断言无人得牌
              got: { countered, gainedNone } };
   }],
+
+  ['识破试探：目标被试探但反制成功 → 不弃牌不留线索', async () => {
+    G.players.forEach(p => { p.human = false; p.hand = p.hand.filter(c => c.fn !== "shipo"); });
+    const prober = G.players[1], t = G.players[2];
+    t.faction = "QF"; t.hint = null;
+    t.char = { key: "guxiaomeng", name: "顾晓梦", covert: false, skill: "" };
+    const st = G.deck.pop(); st.fn = "shitan"; st.probe = "A"; st.color = "red"; st.color2 = undefined;
+    const sp = G.deck.pop(); sp.fn = "shipo"; sp.color = "blue"; sp.color2 = undefined;
+    prober.hand.push(st); t.hand.push(sp);
+    aiWantCounter = (q, user, kind, ctx, cancelled) => !cancelled;   // 必反制、无人恢复
+    const hand = t.hand.length;
+    await resolveShitan(prober, st, t);
+    return { ok: t.hint === null && t.hand.length === hand - 1 && G.discard.includes(sp) && G.discard.includes(st),
+             got: { hint: t.hint, handDelta: t.hand.length - hand } };
+  }],
+
+  ['双识破连锁：识破被再识破 → 试探恢复生效', async () => {
+    G.players.forEach(p => { p.human = false; p.hand = p.hand.filter(c => c.fn !== "shipo"); });
+    const prober = G.players[1], t = G.players[2], helper = G.players[3];
+    t.faction = "QF"; t.hint = null;
+    t.char = { key: "guxiaomeng", name: "顾晓梦", covert: false, skill: "" };
+    prober.char = { key: "guxiaomeng", name: "顾晓梦", covert: false, skill: "" };
+    const st = G.deck.pop(); st.fn = "shitan"; st.probe = "A"; st.color = "red"; st.color2 = undefined;
+    const sp1 = G.deck.pop(); sp1.fn = "shipo"; sp1.color = "blue"; sp1.color2 = undefined;
+    const sp2 = G.deck.pop(); sp2.fn = "shipo"; sp2.color = "red"; sp2.color2 = undefined;
+    prober.hand.push(st); t.hand.push(sp1); helper.hand.push(sp2);
+    aiWantCounter = (q, user, kind, ctx, cancelled) => cancelled ? q === helper : q === t;  // t 反制，helper 恢复
+    await resolveShitan(prober, st, t);
+    return { ok: t.hint === "QF",   // 试探最终生效，暴露潜伏身份
+             got: { hint: t.hint } };
+  }],
 ];
 
 (async () => {

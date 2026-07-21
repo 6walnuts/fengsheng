@@ -373,7 +373,7 @@
        <b class="rule-k">文本</b>：面朝上，同样依次传递。<br>
        若无人接收，情报回到传出者面前，由传出者收下。</p>
     <p><b class="rule-k">回合流程</b>：摸两张牌 → <b>出牌阶段（一）</b> → 传递情报 → <b>出牌阶段（二）</b>。传递分三个窗口：<b>宣告时</b>可用【锁定】【调虎离山】【截获】；<b>到达某人面前时</b>可用【破译】【退回】【调包】；<b>决定接收时</b>不能再用任何牌。</p>
-    <p><b class="rule-k">功能牌</b>：<b>锁定</b>——指定一名玩家，其必须接收本次情报（出牌阶段一或宣告时使用，优先于调虎离山）；<b>调虎离山</b>——指定一名玩家，其不能接收本次情报；<b>退回</b>——情报到你面前时反方向继续传递；<b>截获</b>——宣告时直接拉走情报，或他人即将收下时抢走；<b>破译</b>——偷看面朝下的情报；<b>调包</b>——弃此牌，从手牌任选一张换入传递，原情报收入手牌；<b>烧毁</b>——出牌阶段烧掉任意玩家一张黑色情报；<b>试探</b>——目标按真实身份执行牌上指令；<b>真伪莫辨</b>——每名存活玩家从牌库随机分得一张情报并必须接收（可被【识破】无效）；<b>平信</b>——无功能。</p>
+    <p><b class="rule-k">功能牌</b>：<b>锁定</b>——指定一名玩家，其必须接收本次情报（出牌阶段一或宣告时使用，优先于调虎离山）；<b>调虎离山</b>——指定一名玩家，其不能接收本次情报；<b>退回</b>——情报到你面前时反方向继续传递；<b>截获</b>——宣告时直接拉走情报，或他人即将收下时抢走；<b>破译</b>——偷看面朝下的情报；<b>调包</b>——弃此牌，从手牌任选一张换入传递，原情报收入手牌；<b>烧毁</b>——出牌阶段烧掉任意玩家一张黑色情报；<b>试探</b>——目标按真实身份执行牌上指令；<b>真伪莫辨</b>——每名存活玩家从牌库随机分得一张情报并必须接收；<b>识破</b>——抵销最新一张功能牌的效果，识破亦可被识破（连锁）。情报传递本身、传递方式与角色技能不可被识破；<b>平信</b>——无功能。</p>
     <p><b class="rule-k">绝密任务</b>：任务印在角色牌上——你的身份是打酱油时，胜利条件就是你角色自带的绝密任务。</p>
     <p><b class="rule-k">拓展包《危情》</b>（可选）：牌库加入【威逼】（迫使一名玩家交给你一张手牌）、【利诱】（展示牌库顶两张，目标先选一张、你得另一张）与六张<b>双色情报</b>——双色牌同时计入两种颜色（红黑既算红也算黑！）；酱油任务池新增「双面间谍」（红蓝各集两张）。</p>
     <p><b class="rule-k">拓展包《绝密行动》</b>（可选）：强化打酱油——任务池新增「纵火狂」（累计烧毁三张黑情报）、「劫收专员」（靠【截获】收下两张情报）、「完美中立」（第六轮结束时存活且无红蓝情报）；每名酱油开局获得一条「耳目密报」，得知一名玩家的真实身份。</p>
@@ -438,7 +438,7 @@ const FN_DESC    = {
   shaohui:"烧掉任一玩家的一张黑色情报",
   shitan:"令一名玩家按真实身份行动",
   zhenwei:"每名存活玩家随机分得一张牌库情报，必须接收",
-  shipo:"他人使用【真伪莫辨】时，将其无效",
+  shipo:"抵销最新一张功能牌的效果（识破亦可被识破）",
   none:"无功能，仅作情报",
   weibi:"迫使一名玩家交给你一张手牌",
   liyou:"展示牌库顶两张，目标与你各取一张",
@@ -876,6 +876,8 @@ function cluesFor(t){
       out.push({text:`第${e.round}轮 用【锁定】把黑色情报强塞给了 ${nm(e.toI)}`, strong:true});
     if(e.type==="suoding" && e.actor===t.i)
       out.push({text:`第${e.round}轮 锁定了 ${nm(e.targetI)}（强迫接收）`, strong:true});
+    if(e.type==="shipo" && e.actor===t.i)
+      out.push({text:`第${e.round}轮 识破了 ${nm(e.targetI)} 的功能牌`});
     if(e.type==="diaohu" && e.actor===t.i)
       out.push({text:`第${e.round}轮 对 ${nm(e.targetI)} 使用调虎离山${e.denial?"（拦下其制胜情报！）":""}`, strong:!!e.denial});
     if(e.type==="burn" && e.actor===t.i)
@@ -996,6 +998,7 @@ function hostility(a, b){
     if(e.type==="pushedBlack" && e.actor===a.i && e.toI===b.i) h+=1.5;
     if(e.type==="burn" && e.actor===a.i && e.targetI===b.i && a.i!==b.i) h-=2;
     if(e.type==="suoding" && e.actor===a.i && e.targetI===b.i) h+=2;
+    if(e.type==="shipo" && e.actor===a.i && e.targetI===b.i) h+=1;
     if(e.type==="weibi" && e.actor===a.i && e.targetI===b.i) h+=1;
     if(e.type==="liyou" && e.actor===a.i && e.targetI===b.i) h-=1;
   }
@@ -1212,6 +1215,7 @@ async function aiPlayPhaseStep(p, usableCards, canSkill, phaseNo){
       if(shao && p.hand.length>1){
         discardFromHand(p,shao);
         log(`${pname(p)} 使用【烧毁】。`,"hl");
+        if(await counterWindow(p,"shaohui",{target})) return true;
         await burnBlack(p, target);
         return true;
       } else if(canSkill){
@@ -1261,6 +1265,61 @@ async function aiPlayPhaseStep(p, usableCards, canSkill, phaseNo){
   return false;
 }
 
+/* 识破反制链：功能牌即将生效时开窗，识破可被再识破（叠加），返回 true 表示最终被抵销 */
+async function counterWindow(user, kind, ctx){
+  ctx = ctx||{};
+  let cancelled=false, lastActor=user, layer=0;
+  while(layer++<4){
+    let played=null;
+    for(const q of alivePlayers()){
+      if(q===lastActor || !q.hand.some(c=>c.fn==="shipo")) continue;
+      let use=false;
+      if(q.human){
+        use=await ask(
+          `${pname(user)} 的【${FN_NAME[kind]}】${cancelled?"已被识破——再识破可令其恢复生效":"即将生效"}，是否使用【识破】？`,
+          [{label:cancelled?"识破（恢复其生效）":"识破（抵销效果）",value:true},{label:"不使用",value:false}]);
+      } else {
+        use=aiWantCounter(q, user, kind, ctx, cancelled);
+      }
+      if(use){
+        const sc=await chooseFnCard(q,"shipo","识破");
+        if(!sc) continue;
+        discardFromHand(q,sc);
+        cancelled=!cancelled;
+        log(`${pname(q)} 使用【识破】——${pname(user)} 的【${FN_NAME[kind]}】${cancelled?"被抵销":"恢复生效"}！`, cancelled?"good":"warn");
+        evt({type:"shipo", actor:q.i, targetI:user.i});
+        rep(`${q.name} 识破 → ${FN_NAME[kind]}${cancelled?"作废":"恢复"}`);
+        render(); await sleep(400);
+        played=q; break;
+      }
+    }
+    if(!played) break;
+    lastActor=played;
+  }
+  return cancelled;
+}
+function aiWantCounter(q, user, kind, ctx, cancelled){
+  const t=ctx.target;
+  if(cancelled){
+    // 已被抵销：使用者一方想反-反制恢复效果
+    return (q===user || aiIsLikelyAlly(q,user)) && Math.random()<0.5;
+  }
+  if(kind==="suoding") return t && (t===q || aiIsLikelyAlly(q,t)) && Math.random()<0.7;
+  if(kind==="shitan")  return t && (t===q? Math.random()<0.45 : (aiIsLikelyAlly(q,t) && Math.random()<0.25));
+  if(kind==="weibi")   return t && (t===q? Math.random()<0.4 : (aiIsLikelyAlly(q,t) && Math.random()<0.2));
+  if(kind==="shaohui"){
+    if(t===q && q.faction==="JY" && q.mission.key==="martyr") return Math.random()<0.8; // 殉道者不想被救
+    return t && aiIsLikelyEnemy(q,t) && Math.random()<0.3;   // 阻止敌人被解救
+  }
+  if(kind==="zhenwei"){
+    const risky = countColor(q,"black")>=2
+      || alivePlayers().some(x=>x!==q && aiIsLikelyAlly(q,x) && countColor(x,"black")>=2);
+    return risky? Math.random()<0.85 : Math.random()<0.15;
+  }
+  if(kind==="liyou") return Math.random()<0.05;
+  return false;
+}
+
 /* 真伪莫辨：全场每人随机分得一张牌库情报，必须接收；可被【识破】无效 */
 async function resolveZhenwei(p, card){
   if(p.human){
@@ -1273,28 +1332,7 @@ async function resolveZhenwei(p, card){
   evt({type:"zhenwei", actor:p.i});
   rep(`${p.name} 真伪莫辨`,"warn");
   await sleep(500);
-  // 识破响应窗口
-  for(const q of alivePlayers()){
-    if(q===p || !q.hand.some(c=>c.fn==="shipo")) continue;
-    let use=false;
-    if(q.human){
-      use=await ask("是否使用【识破】令这张【真伪莫辨】无效？",
-        [{label:"识破！",value:true},{label:"不使用",value:false}]);
-    } else {
-      const risky = countColor(q,"black")>=2
-        || alivePlayers().some(t=>t!==q && aiIsLikelyAlly(q,t) && countColor(t,"black")>=2);
-      use = risky? Math.random()<0.85 : Math.random()<0.2;
-    }
-    if(use){
-      const sc=await chooseFnCard(q,"shipo","识破");
-      if(!sc) continue;
-      discardFromHand(q,sc);
-      log(`${pname(q)} 使用【识破】——【真伪莫辨】无效！`,"good");
-      rep(`${q.name} 识破，真伪莫辨作废`);
-      render(); await sleep(400);
-      return;
-    }
-  }
+  if(await counterWindow(p,"zhenwei")) return;
   // 结算：从当前玩家起按座位序，每人随机分得一张
   const order=[p, ...seatsFrom(p,"cw")].filter(q=>q.alive);
   const pool=[];
@@ -1327,6 +1365,7 @@ async function resolveSuoding(p, card, presetTarget){
     if(!t) return;
   }
   discardFromHand(p,card);
+  if(await counterWindow(p,"suoding",{target:t})) return;
   G.pendingLocks = G.pendingLocks||[];
   G.pendingLocks.push(t.i);
   log(`${pname(p)} 使用【锁定】——${pname(t)} 本回合传递中必须接收情报！`,"warn");
@@ -1350,6 +1389,7 @@ async function resolveWeibi(p, card, presetTarget){
   log(`${pname(p)} 对 ${pname(t)} 使用【威逼】！`,"hl");
   evt({type:"weibi", actor:p.i, targetI:t.i});
   rep(`${p.name} 威逼 ${t.name}`);
+  if(await counterWindow(p,"weibi",{target:t})) return;
   await sleep(400);
   let give;
   if(t.human){
@@ -1383,6 +1423,7 @@ async function resolveLiyou(p, card, presetTarget){
     if(!t) return;
   }
   discardFromHand(p,card);
+  if(await counterWindow(p,"liyou",{target:t})) return;
   const c1=drawTop(), c2=drawTop();
   if(!c1){ log("牌库已空，利诱落空。"); return; }
   log(`${pname(p)} 对 ${pname(t)} 使用【利诱】，展示牌库顶：${cardColorLabel(c1)}·${FN_NAME[c1.fn]}${c2?` 与 ${cardColorLabel(c2)}·${FN_NAME[c2.fn]}`:""}。`,"hl");
@@ -1411,6 +1452,7 @@ async function resolveShaohui(p, card){
   if(!t) return;                       // 撤回：不弃牌
   discardFromHand(p,card);
   log(`${pname(p)} 使用【烧毁】。`,"hl");
+  if(await counterWindow(p,"shaohui",{target:t})) return;
   await burnBlack(p, t);
 }
 async function chooseBurnTarget(cancellable){
@@ -1449,6 +1491,7 @@ async function resolveShitan(p, card, presetTarget){
     } else t = rnd(cands);
   }
   discardFromHand(p,card);
+  if(await counterWindow(p,"shitan",{target:t})) return;
   await probeOne(p, card, t);
 
   // 老枪·排查：同一张试探可再指定一名额外目标
@@ -2461,7 +2504,7 @@ const FN_TIMING = {
   shaohui:"出牌阶段",
   shitan:"出牌阶段",
   zhenwei:"出牌阶段",
-  shipo:"他人使用【真伪莫辨】时",
+  shipo:"功能牌即将生效时（可连锁）",
   none:"——",
   weibi:"出牌阶段",
   liyou:"出牌阶段",
