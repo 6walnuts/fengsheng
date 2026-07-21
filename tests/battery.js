@@ -796,7 +796,7 @@ const scenarios = [
     bs.forEach(c => { c.color = "black"; c.color2 = undefined; });
     victim.intel.push(...bs);
     await killPlayer(victim);
-    return { ok: G.over && G.winners.includes(j) && G.winText.includes("斩草除根"),
+    return { ok: G.over && G.winners.includes(j) && G.winText.includes("军情处获胜"),
              got: { over: G.over, text: G.winText } };
   }],
 
@@ -843,13 +843,105 @@ const scenarios = [
                     marks: [cnt(c=>c.mark==="midian"), cnt(c=>c.mark==="zhida"), cnt(c=>c.mark==="wenben")] } };
   }],
 
-  ['千智人物池：黑名单12人+千智9人合并', async () => {
+  ['千智人物池：维基表格25人（潜伏10+公开15），任务/明暗置对表', async () => {
     newGame(6, null, { roster: "qianzhi" });
-    const pool = OFFICIAL_CHARS.concat(QIANZHI_CHARS).map(c => c.key);
-    const ok = G.players.every(p => pool.includes(p.char.key))
-      && QIANZHI_CHARS.length === 9
-      && G.players.filter(p => p.faction === "JY").every(p => p.mission.key === CHAR_MISSION[p.char.key]);
-    return { ok, got: { chars: G.players.map(p => p.char.key) } };
+    const cov = QIANZHI_CHARS.filter(c => c.covert), open = QIANZHI_CHARS.filter(c => !c.covert);
+    const by = n => QIANZHI_CHARS.find(c => c.name === n);
+    const ok = QIANZHI_CHARS.length === 25 && cov.length === 10 && open.length === 15
+      && ["浮萍","六姐","小马哥","怪盗九九","贝雷帽"].every(n => by(n))
+      && !QIANZHI_CHARS.some(c => c.name === "硬汉")
+      && by("老鬼").missionKey === "redhand" && by("老鬼").covert
+      && by("黄雀").covert && !by("刀锋").covert && !by("大美女").covert && !by("蝮蛇").covert
+      && by("钢铁特工K").missionKey === "shipo4" && by("蝮蛇").missionKey === "snake"
+      && by("小白").gender === "B"
+      && G.players.every(p => QIANZHI_CHARS.includes(p.char))
+      && G.players.filter(p => p.faction === "JY").every(p => p.mission.key === (p.char.missionKey || CHAR_MISSION[p.char.key]));
+    return { ok, got: { n: QIANZHI_CHARS.length, cov: cov.length, open: open.length } };
+  }],
+
+  ['留有后手：老鬼死亡时手握三张红 → 反而单独获胜', async () => {
+    G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
+    const p = G.players[1];
+    p.faction = "JY"; p.mission = MISSION_DEFS.redhand;
+    p.hand.forEach(c => { c.color = "red"; c.color2 = undefined; });
+    while (p.hand.length < 3) { const c = G.deck.pop(); c.color = "red"; c.color2 = undefined; p.hand.push(c); }
+    const bs = [G.deck.pop(), G.deck.pop(), G.deck.pop()];
+    bs.forEach(c => { c.color = "black"; c.color2 = undefined; });
+    p.intel.push(...bs);
+    await killPlayer(p, null);
+    return { ok: G.over && G.winners.length === 1 && G.winners[0] === p && G.winText.includes("留有后手"),
+             got: { over: G.over, text: G.winText } };
+  }],
+
+  ['两败俱伤：潜伏与军情各死一人 → 酱油获胜', async () => {
+    G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
+    ["QF","QF","JQ","JQ","JY","JY"].forEach((f, i) => { G.players[i].faction = f; G.players[i].mission = null; });
+    const j = G.players[4];
+    j.faction = "JY"; j.mission = MISSION_DEFS.oneEach;
+    G.players[5].mission = MISSION_DEFS.collect3;
+    const kill = async v => {
+      const bs = [G.deck.pop(), G.deck.pop(), G.deck.pop()];
+      bs.forEach(c => { c.color = "black"; c.color2 = undefined; });
+      v.intel.push(...bs);
+      await killPlayer(v, null);
+    };
+    await kill(G.players[0]);   // 一名潜伏死亡
+    const midOver = G.over;
+    await kill(G.players[2]);   // 一名军情死亡 → 两败俱伤
+    return { ok: !midOver && G.over && G.winners.includes(j) && G.winText.includes("两败俱伤"),
+             got: { midOver, over: G.over, text: G.winText } };
+  }],
+
+  ['后发制人：无人死亡时的胜利宣告被蝮蛇截胡', async () => {
+    G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
+    const w = G.players[1], snake = G.players[2];
+    w.faction = "QF"; w.mission = null;
+    snake.faction = "JY"; snake.mission = MISSION_DEFS.snake;
+    const rs = [G.deck.pop(), G.deck.pop(), G.deck.pop()];
+    rs.forEach(c => { c.color = "red"; c.color2 = undefined; });
+    w.intel.push(rs[0], rs[1]);
+    await gainIntel(w, rs[2]);   // 潜伏凑三红宣告胜利，但无人死亡
+    return { ok: G.over && G.winners.length === 1 && G.winners[0] === snake && G.winText.includes("后发制人"),
+             got: { over: G.over, text: G.winText, winners: G.winners.map(x => x.name) } };
+  }],
+
+  ['闪灵狙击+灭口：黑手牌塞死无真情报的玩家 → 单独获胜', async () => {
+    G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
+    const p = G.players[1], t = G.players[2];
+    p.char = QIANZHI_CHARS.find(c => c.key === "qz_shanling");
+    p.charRevealed = false; p.faction = "JY"; p.mission = MISSION_DEFS.killclean;
+    t.faction = "JQ"; t.mission = null;
+    const hb = G.deck.pop(); hb.color = "black"; hb.color2 = undefined; p.hand.push(hb);
+    const b2 = [G.deck.pop(), G.deck.pop()];
+    b2.forEach(c => { c.color = "black"; c.color2 = undefined; });
+    t.intel.push(...b2);   // 两黑、零真情报
+    await skillJuji(p, t, hb);
+    return { ok: !t.alive && G.over && G.winners.length === 1 && G.winners[0] === p && G.winText.includes("灭口"),
+             got: { tAlive: t.alive, text: G.winText } };
+  }],
+
+  ['左右逢源：摸牌凑齐三红三蓝手牌 → 单独获胜', async () => {
+    G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
+    const p = G.players[1];
+    p.faction = "JY"; p.mission = MISSION_DEFS.handrb33;
+    p.hand.length = 0;
+    for (let i = 0; i < 3; i++) { const c = G.deck.pop(); c.color = "red"; c.color2 = undefined; p.hand.push(c); }
+    for (let i = 0; i < 2; i++) { const c = G.deck.pop(); c.color = "blue"; c.color2 = undefined; p.hand.push(c); }
+    const top = G.deck[G.deck.length - 1]; top.color = "blue"; top.color2 = undefined;
+    drawCards(p, 1);
+    return { ok: G.over && G.winners.length === 1 && G.winners[0] === p && G.winText.includes("左右逢源"),
+             got: { over: G.over, text: G.winText } };
+  }],
+
+  ['包罗万象：第六张情报到手 → 单独获胜', async () => {
+    G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
+    const p = G.players[1];
+    p.faction = "JY"; p.mission = MISSION_DEFS.six;
+    for (let i = 0; i < 5; i++) { const c = G.deck.pop(); c.color = i % 2 ? "red" : "blue"; c.color2 = undefined; p.intel.push(c); }
+    const six = G.deck.pop(); six.color = "red"; six.color2 = undefined;
+    await gainIntel(p, six);
+    return { ok: G.over && G.winners.length === 1 && G.winText.includes("包罗万象"),
+             got: { over: G.over, text: G.winText } };
   }],
 
   ['转移：情报被转移到指定玩家面前，其接收', async () => {
