@@ -824,6 +824,164 @@ const scenarios = [
              got: { winners: G.winners.map(x => x.name) } };
   }],
 
+  ['千智新版牌库：81张 红24/蓝24/黑33 密47/直26/文8 含转移离间', async () => {
+    newGame(6, null, { qzdeck: true, roster: "qianzhi" });
+    G.players.forEach(p => p.human = false);
+    const all = [...G.deck, ...G.players.flatMap(p => p.hand)];
+    const cnt = f => all.filter(f).length;
+    const cs = cardCensus();
+    return { ok: G.totalCards === 81
+              && cnt(c => c.color === "red") === 24 && cnt(c => c.color === "blue") === 24
+              && cnt(c => c.color === "black") === 33 && cnt(c => c.color2) === 0
+              && cnt(c => c.fn === "zhuanyi") === 4 && cnt(c => c.fn === "lijian") === 3
+              && cnt(c => c.fn === "zhenwei") === 0
+              && cnt(c => c.mark === "midian") === 47 && cnt(c => c.mark === "zhida") === 26
+              && cnt(c => c.mark === "wenben") === 8
+              && cs.total === 81 && cs.dup === 0 && G.exp.heimingdan === true,
+             got: { total: G.totalCards,
+                    colors: [cnt(c=>c.color==="red"), cnt(c=>c.color==="blue"), cnt(c=>c.color==="black")],
+                    marks: [cnt(c=>c.mark==="midian"), cnt(c=>c.mark==="zhida"), cnt(c=>c.mark==="wenben")] } };
+  }],
+
+  ['千智人物池：黑名单12人+千智9人合并', async () => {
+    newGame(6, null, { roster: "qianzhi" });
+    const pool = OFFICIAL_CHARS.concat(QIANZHI_CHARS).map(c => c.key);
+    const ok = G.players.every(p => pool.includes(p.char.key))
+      && QIANZHI_CHARS.length === 9
+      && G.players.filter(p => p.faction === "JY").every(p => p.mission.key === CHAR_MISSION[p.char.key]);
+    return { ok, got: { chars: G.players.map(p => p.char.key) } };
+  }],
+
+  ['转移：情报被转移到指定玩家面前，其接收', async () => {
+    G.players.forEach(p => p.human = false);
+    const sender = G.players[0], mover = G.players[1], dest = G.players[3];
+    const zy = G.deck.pop(); zy.fn = "zhuanyi"; zy.color = "red"; zy.color2 = undefined;
+    mover.hand.push(zy);
+    let calls = 0;
+    aiOffer = async (q) => {
+      calls++;
+      if (q === mover) {
+        const c = q.hand.find(x => x.fn === "zhuanyi");
+        discardFromHand(q, c);
+        return "transfer:" + dest.i;
+      }
+      return q === dest ? "accept" : "pass";
+    };
+    const c = G.deck.pop();
+    G.transit = { id: 88, card: c, sender: 0, mode: "midian", dir: "cw", faceUp: false,
+                  pos: 0, knownTo: new Set([0]), locked: new Set(), banned: new Set(),
+                  offers: 0, tamperedBy: null };
+    const receiver = await passSequence(sender);
+    G.discard.push(c); G.transit = null;
+    return { ok: receiver === dest && !mover.hand.includes(zy),
+             got: { receiver: receiver && receiver.i, spent: !mover.hand.includes(zy) } };
+  }],
+
+  ['离间：AI 把指向自己的锁定改到已亮身份的敌人头上', async () => {
+    G.players.forEach(p => { p.human = false; p.hand = p.hand.filter(c => c.fn !== "shipo" ? true : (G.discard.push(c), false)); });
+    const user = G.players[1], t = G.players[2], enemy = G.players[3];
+    t.faction = "QF";
+    enemy.faction = "JQ"; enemy.revealed = true;
+    const lj = G.deck.pop(); lj.fn = "lijian"; lj.color = "blue"; lj.color2 = undefined;
+    t.hand.push(lj);
+    const sd = G.deck.pop(); sd.fn = "suoding"; sd.color = "red"; sd.color2 = undefined;
+    user.hand.push(sd);
+    const _r = Math.random; Math.random = () => 0.5;
+    await resolveSuoding(user, sd, t);
+    Math.random = _r;
+    return { ok: G.pendingLocks.includes(enemy.i) && !G.pendingLocks.includes(t.i) && !t.hand.includes(lj),
+             got: { locks: G.pendingLocks } };
+  }],
+
+  ['小白败露：第六张情报到手 → 出局（非三黑死亡文案）', async () => {
+    G.players.forEach(p => p.human = false);
+    const p = G.players[1];
+    p.char = QIANZHI_CHARS.find(c => c.key === "q_xiaobai");
+    p.faction = "JQ"; p.mission = null;
+    const cs5 = [];
+    for (let i = 0; i < 5; i++) { const c = G.deck.pop(); c.color = i % 2 ? "red" : "blue"; c.color2 = undefined; cs5.push(c); }
+    p.intel.push(...cs5);
+    const six = G.deck.pop(); six.color = "red"; six.color2 = undefined;
+    await gainIntel(p, six);
+    const cs = cardCensus();
+    return { ok: !p.alive && !G.over && p.intel.length === 0 && cs.total === cs.expect && cs.dup === 0,
+             got: { alive: p.alive, over: G.over, census: cs } };
+  }],
+
+  ['钢铁特工K警觉：试探被无效（不可被识破），不留认知', async () => {
+    G.players.forEach(p => { p.human = false; p.hand = p.hand.filter(c => c.fn !== "shipo" ? true : (G.discard.push(c), false)); });
+    const prober = G.players[1], k = G.players[2];
+    k.char = QIANZHI_CHARS.find(c => c.key === "q_gangtie");
+    k.charRevealed = false; k.faction = "QF";
+    const st = G.deck.pop(); st.fn = "shitan"; st.probe = "A"; st.color = "red"; st.color2 = undefined;
+    prober.hand.push(st);
+    const _r = Math.random; Math.random = () => 0.3;
+    await resolveShitan(prober, st, k);
+    Math.random = _r;
+    const pv = viewOf(prober)[k.i];
+    return { ok: k.charRevealed && !pv.hint && pv.excluded.length === 0,
+             got: { revealed: k.charRevealed, proberKnows: pv } };
+  }],
+
+  ['戴笠布网：真情报送达后补塞黑牌 → 击杀', async () => {
+    G.players.forEach(p => p.human = false);
+    const sd = G.players[1], t = G.players[2];
+    sd.char = QIANZHI_CHARS.find(c => c.key === "q_daili");
+    sd.faction = "QF"; sd.mission = null;
+    t.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" };
+    t.faction = "JQ"; t.mission = null; t.revealed = true;
+    sd.hand.forEach(c => { c.color = "red"; c.color2 = undefined; });
+    const hb = G.deck.pop(); hb.color = "black"; hb.color2 = undefined; sd.hand.push(hb);
+    const b2 = [G.deck.pop(), G.deck.pop()];
+    b2.forEach(c => { c.color = "black"; c.color2 = undefined; });
+    t.intel.push(...b2);
+    const c = G.deck.pop(); c.color = "blue"; c.color2 = undefined;
+    G.transit = { id: 87, card: c, sender: sd.i, mode: "zhida", dir: null, faceUp: false,
+                  pos: t.i, knownTo: new Set([sd.i]), locked: new Set(), banned: new Set(),
+                  offers: 0, tamperedBy: null };
+    const _r = Math.random; Math.random = () => 0.3;
+    await gainIntel(t, c);
+    Math.random = _r;
+    G.transit = null;
+    const cs = cardCensus();
+    return { ok: !t.alive && !sd.hand.includes(hb) && cs.total === cs.expect && cs.dup === 0,
+             got: { tAlive: t.alive, netUsed: !sd.hand.includes(hb), census: cs } };
+  }],
+
+  ['福尔摩斯偷天：第二张黑被手牌替换，免死留进度', async () => {
+    G.players.forEach(p => p.human = false);
+    const p = G.players[1];
+    p.char = QIANZHI_CHARS.find(c => c.key === "q_fuermosi");
+    p.faction = "QF"; p.mission = null;
+    p.hand.forEach(c => { c.color = "red"; c.color2 = undefined; });
+    const b1 = G.deck.pop(); b1.color = "black"; b1.color2 = undefined;
+    p.intel.push(b1);
+    const b2 = G.deck.pop(); b2.color = "black"; b2.color2 = undefined;
+    await gainIntel(p, b2);
+    const cs = cardCensus();
+    return { ok: p.alive && countColor(p, "black") === 1 && p.intel.length === 2
+              && p.onceUsed.toutian === true && G.discard.includes(b2)
+              && cs.total === cs.expect && cs.dup === 0,
+             got: { blacks: countColor(p, "black"), intel: p.intel.length, census: cs } };
+  }],
+
+  ['小白收买：四张手牌换走他人一张情报', async () => {
+    G.players.forEach(p => p.human = false);
+    const p = G.players[1], t = G.players[2];
+    p.char = QIANZHI_CHARS.find(c => c.key === "q_xiaobai");
+    p.faction = "QF"; p.mission = null;
+    while (p.hand.length < 5) p.hand.push(G.deck.pop());
+    const r = G.deck.pop(); r.color = "red"; r.color2 = undefined;
+    t.intel.push(r);
+    const ph = p.hand.length, th = t.hand.length;
+    await skillShoumai(p, t, r);
+    const cs = cardCensus();
+    return { ok: p.intel.includes(r) && !t.intel.includes(r)
+              && p.hand.length === ph - 4 && t.hand.length === th + 4
+              && cs.total === cs.expect && cs.dup === 0,
+             got: { got: p.intel.includes(r), pHand: p.hand.length - ph, tHand: t.hand.length - th, census: cs } };
+  }],
+
   ['试探D命中：试探者私有排除酱油', async () => {
     G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
     const prober = G.players[1], t = G.players[2];
