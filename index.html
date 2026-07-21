@@ -238,6 +238,28 @@
   #overTitle{font-size:30px;color:var(--seal)}
   .rule-k{color:var(--brass)}
 
+  /* 百科 */
+  .wiki-modal{max-width:780px}
+  .wiki-tabs{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+  .wiki-tabs button{border:1px solid var(--brass-dim);background:transparent;color:var(--text-dim);
+    padding:5px 16px;cursor:pointer;font-family:inherit;font-size:13px;letter-spacing:.1em}
+  .wiki-tabs button.on{background:var(--brass);color:#171310;border-color:var(--brass);font-weight:700}
+  .wiki-sec{color:var(--brass);letter-spacing:.25em;font-size:13px;margin:16px 0 8px}
+  .wiki-sec:first-child{margin-top:0}
+  .wiki-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .wiki-item{border:1px solid #2c3442;padding:8px 10px;background:rgba(0,0,0,.18)}
+  .wiki-item .wname{font-family:"STKaiti","KaiTi",serif;color:var(--paper);font-size:16px;font-weight:700}
+  .wiki-tag{font-size:10px;padding:1px 6px;border-radius:2px;margin-left:6px;vertical-align:2px}
+  .wiki-tag.covert{background:#3a3325;color:var(--brass)}
+  .wiki-tag.open{background:#25333a;color:#7ea8d0}
+  .wiki-tag.pack{background:#33252e;color:#c98ba1}
+  .wiki-item .wskill{font-size:12px;color:var(--text-dim);margin-top:4px;line-height:1.55}
+  .wiki-table{width:100%;border-collapse:collapse;font-size:12px}
+  .wiki-table td,.wiki-table th{border-bottom:1px dashed #2c3442;padding:5px 6px;text-align:left;color:var(--text-dim);line-height:1.5}
+  .wiki-table th{color:var(--text);font-weight:700}
+  .wiki-note{font-size:11px;color:#6b6558;margin-top:8px;line-height:1.6}
+  @media (max-width:620px){ .wiki-grid{grid-template-columns:1fr} }
+
   /* 窄屏 */
   @media (max-width:900px){
     #logPanel{display:none}
@@ -298,6 +320,7 @@
     <div class="pcount fpick" id="fpickRow"></div>
     <button class="btn" id="btnStart">潜 入</button>
     <button class="btn small" id="btnHelp0">游戏规则</button>
+    <button class="btn small" id="btnWiki0">角色百科</button>
     <div id="statsLine" style="font-size:11px;color:var(--text-dim);letter-spacing:.05em"></div>
   </div>
 </div>
@@ -312,6 +335,7 @@
     <div id="deckInfo"></div>
     <button class="btn small" id="btnLog" style="display:none">记录</button>
     <button class="btn small" id="btnSpeed">速度：正常</button>
+    <button class="btn small" id="btnWiki">百科</button>
     <button class="btn small" id="btnHelp">规则</button>
     <button class="btn small warn" id="btnRestart">重开</button>
   </div>
@@ -356,6 +380,16 @@
     <p><b class="rule-k">提示</b>：情报区的牌对所有人公开。传出情报前想清楚：这张牌的颜色、传给谁、走哪个方向，都会暴露你的立场。点击任意座位可查看你已掌握的线索与推测。</p>
     <p style="color:#6b6558;font-size:11px">网页版为适配单机对 AI 而对原桌游细节有少量简化（角色技能取自其中一部分，文本/密电方向可自选）。</p>
     <div class="mrow"><button class="btn small" id="btnHelpClose">关闭</button></div>
+  </div>
+</div>
+
+<!-- ======== 百科弹窗 ======== -->
+<div class="overlay" id="wikiOverlay">
+  <div class="modal wiki-modal">
+    <h2 class="kai">风声 · 百科</h2>
+    <div class="wiki-tabs" id="wikiTabs"></div>
+    <div id="wikiBody"></div>
+    <div class="mrow"><button class="btn small" id="btnWikiClose">关闭</button></div>
   </div>
 </div>
 
@@ -2112,6 +2146,76 @@ function endGame(winners, text){
   }
 }
 
+/* ---------- 百科 ---------- */
+const FN_TIMING = {
+  jiehuo:"他人即将收下情报时（后发先至，可连环）",
+  poyi:"暗置情报传到你面前时",
+  wudao:"情报传到你面前时",
+  diaobao:"情报传到你面前、被收下之前",
+  shaohui:"出牌阶段",
+  shitan:"出牌阶段",
+  none:"——",
+  weibi:"出牌阶段",
+  liyou:"出牌阶段",
+};
+const FN_COUNT = { jiehuo:"12", poyi:"13 +2*", wudao:"13", diaobao:"10", shaohui:"13", shitan:"12", none:"8 +2*", weibi:"6*", liyou:"6*" };
+let wikiTab = "chars";
+function charItem(c, packTag){
+  return `<div class="wiki-item"><span class="wname">${c.name}</span>`+
+    `<span class="wiki-tag ${c.covert?"covert":"open"}">${c.covert?"暗置":"公开"}</span>`+
+    (packTag?`<span class="wiki-tag pack">${packTag}</span>`:"")+
+    `<div class="wskill">${c.skill}</div></div>`;
+}
+function wikiCharsHtml(){
+  const open16 = CHARS.filter(c=>!c.covert), cov16 = CHARS.filter(c=>c.covert);
+  return `<div class="wiki-sec">基 础 角 色 · 公 开（${open16.length}）</div>
+    <div class="wiki-grid">${open16.map(c=>charItem(c)).join("")}</div>
+    <div class="wiki-sec">基 础 角 色 · 暗 置（${cov16.length}）</div>
+    <div class="wiki-grid">${cov16.map(c=>charItem(c)).join("")}</div>
+    <div class="wiki-sec">拓 展 · 绝 密 档 案（${ARCHIVE_CHARS.length}）</div>
+    <div class="wiki-grid">${ARCHIVE_CHARS.map(c=>charItem(c,"档案")).join("")}</div>
+    <div class="wiki-note">暗置角色开局盖伏，他人只见座位代号；技能首次触发时当众翻开并摸一张牌作补偿。每局从启用的角色池中随机分配。</div>`;
+}
+function wikiCardsHtml(){
+  const order=["jiehuo","poyi","wudao","diaobao","shaohui","shitan","none","weibi","liyou"];
+  const rows=order.map(k=>`<tr><td><b style="color:var(--paper-dim)">${FN_NAME[k]}</b></td><td>${FN_COUNT[k]}</td><td>${FN_TIMING[k]}</td><td>${FN_DESC[k]}</td></tr>`).join("");
+  return `<div class="wiki-sec">功 能 牌 一 览</div>
+    <div style="overflow-x:auto"><table class="wiki-table">
+      <tr><th>牌名</th><th>数量</th><th>使用时机</th><th>效果</th></tr>${rows}
+    </table></div>
+    <div class="wiki-sec">牌 库 构 成</div>
+    <table class="wiki-table">
+      <tr><th>基础 81 张</th><td>颜色：红 25 / 蓝 25 / 黑 31　印章：直达 27 / 密电 27 / 文本 27</td></tr>
+      <tr><th>危情 +18 张*</th><td>威逼 ×6、利诱 ×6（红蓝黑各2）；双色情报 ×6（红蓝/红黑/蓝黑各2，同时计入两种颜色）</td></tr>
+    </table>
+    <div class="wiki-note">带 * 的数量为《危情》拓展启用时加入。试探牌共四种指令（查潜伏 / 查军情 / 查酱油 / 甄别酱油）各占 1/4。收到三张黑色情报（含双色带黑）立即出局。</div>`;
+}
+function wikiMissionsHtml(){
+  const mrow=(m,tag)=>`<tr><td><b style="color:var(--paper-dim)">${m.name}</b>${tag?`<span class="wiki-tag pack">${tag}</span>`:""}</td><td>${m.desc}</td></tr>`;
+  return `<div class="wiki-sec">阵 营 胜 利 条 件</div>
+    <table class="wiki-table">
+      <tr><td><span class="badge QF">潜伏战线</span></td><td>任意一名潜伏玩家集齐三张红色情报，全体潜伏获胜</td></tr>
+      <tr><td><span class="badge JQ">军情处</span></td><td>任意一名军情玩家集齐三张蓝色情报，全体军情获胜</td></tr>
+      <tr><td><span class="badge JY">打酱油</span></td><td>完成自己的机密任务（随机其一），单独获胜</td></tr>
+    </table>
+    <div class="wiki-sec">酱 油 机 密 任 务</div>
+    <table class="wiki-table">
+      ${MISSIONS.map(m=>mrow(m)).join("")}
+      ${EXP_MISSIONS.map(m=>mrow(m,"危情")).join("")}
+      ${ACTION_MISSIONS.map(m=>mrow(m,"绝密行动")).join("")}
+    </table>
+    <div class="wiki-note">带标签的任务仅在对应拓展启用时进入任务池。《绝密行动》启用时，每名酱油开局还会获得一条「耳目密报」——得知一名随机玩家的真实身份。</div>`;
+}
+function renderWiki(){
+  const tabs=[["chars","角色技能"],["cards","功能牌"],["missions","身份与任务"]];
+  $("#wikiTabs").innerHTML = tabs.map(([k,l])=>`<button class="${wikiTab===k?"on":""}" data-tab="${k}">${l}</button>`).join("");
+  $("#wikiTabs").querySelectorAll("button").forEach(b=>{
+    b.onclick=()=>{ wikiTab=b.dataset.tab; renderWiki(); };
+  });
+  $("#wikiBody").innerHTML = wikiTab==="chars"? wikiCharsHtml() : wikiTab==="cards"? wikiCardsHtml() : wikiMissionsHtml();
+}
+function openWiki(){ renderWiki(); $("#wikiOverlay").classList.add("on"); }
+
 /* ---------- 入口/界面接线 ---------- */
 let chosenN = 6, chosenFaction = null;
 const chosenExp = { weiqing:false, action:false, archive:false };
@@ -2143,6 +2247,10 @@ function initStart(){
   $("#btnHelp0").onclick=()=>$("#helpOverlay").classList.add("on");
   $("#btnHelp").onclick=()=>$("#helpOverlay").classList.add("on");
   $("#btnHelpClose").onclick=()=>$("#helpOverlay").classList.remove("on");
+  $("#btnWiki0").onclick=openWiki;
+  $("#btnWiki").onclick=openWiki;
+  $("#btnWikiClose").onclick=()=>$("#wikiOverlay").classList.remove("on");
+  $("#wikiOverlay").onclick=e=>{ if(e.target.id==="wikiOverlay") $("#wikiOverlay").classList.remove("on"); };
   $("#btnClueClose").onclick=()=>$("#clueOverlay").classList.remove("on");
   $("#clueOverlay").onclick=e=>{ if(e.target.id==="clueOverlay") $("#clueOverlay").classList.remove("on"); };
   $("#btnReplay").onclick=()=>{
