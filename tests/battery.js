@@ -22,7 +22,7 @@ const scenarios = [
     // 固定他人角色为无被动触发者，排除影子/小翠/守夜人等联动干扰
     G.players.forEach(q => { if (q !== p) q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
     const b1 = G.deck.pop(), b2 = G.deck.pop(), b3 = G.deck.pop();
-    b1.color = b2.color = b3.color = "black";
+    b1.color = b2.color = b3.color = "black"; b1.color2 = b2.color2 = b3.color2 = undefined;
     p.intel.push(b1, b2);
     const deck = G.deck.length;
     await gainIntel(p, b3);
@@ -39,7 +39,7 @@ const scenarios = [
     bashu.faction = "QF"; bashu.mission = null;
     ally.faction = "QF"; ally.revealed = true; ally.mission = null;
     const r1 = G.deck.pop(), r2 = G.deck.pop(), r3 = G.deck.pop();
-    r1.color = r2.color = r3.color = "red";
+    r1.color = r2.color = r3.color = "red"; r1.color2 = r2.color2 = r3.color2 = undefined;
     bashu.intel.push(r1); ally.intel.push(r2, r3);
     await killPlayer(bashu);
     const cs = cardCensus();
@@ -55,7 +55,7 @@ const scenarios = [
     p.faction = "JY"; p.mission = { key: "martyr", name: "殉道者" };
     G.round = 2;
     const b1 = G.deck.pop(), b2 = G.deck.pop(), b3 = G.deck.pop();
-    b1.color = b2.color = b3.color = "black";
+    b1.color = b2.color = b3.color = "black"; b1.color2 = b2.color2 = b3.color2 = undefined;
     p.intel.push(b1, b2);
     await gainIntel(p, b3);
     return { ok: !p.alive && !G.over, got: { alive: p.alive, over: G.over } };
@@ -68,7 +68,7 @@ const scenarios = [
     p.faction = "JY"; p.mission = { key: "martyr", name: "殉道者" };
     G.round = 3;
     const b1 = G.deck.pop(), b2 = G.deck.pop(), b3 = G.deck.pop();
-    b1.color = b2.color = b3.color = "black";
+    b1.color = b2.color = b3.color = "black"; b1.color2 = b2.color2 = b3.color2 = undefined;
     p.intel.push(b1, b2);
     await gainIntel(p, b3);
     return { ok: G.over && G.winners.length === 1 && G.winText.includes("殉道"),
@@ -80,7 +80,7 @@ const scenarios = [
     const p = G.players[1];
     p.faction = "JY"; p.mission = { key: "hoarder", name: "收藏家" };
     const cs = [G.deck.pop(), G.deck.pop(), G.deck.pop(), G.deck.pop()];
-    cs[0].color = "red"; cs[1].color = "blue"; cs[2].color = "red"; cs[3].color = "blue";
+    cs.forEach(c => c.color2 = undefined); cs[0].color = "red"; cs[1].color = "blue"; cs[2].color = "red"; cs[3].color = "blue";
     p.intel.push(cs[0], cs[1], cs[2]);
     await gainIntel(p, cs[3]);
     return { ok: G.over && G.winners.length === 1 && G.winText.includes("四张"),
@@ -93,7 +93,7 @@ const scenarios = [
     p.faction = "JY"; p.mission = { key: "collect3", name: "情报贩子" };
     p.char = { key: "guxiaomeng", name: "顾晓梦", covert: false, skill: "" };
     const cs = [G.deck.pop(), G.deck.pop(), G.deck.pop()];
-    cs[0].color = "red"; cs[1].color = "blue"; cs[2].color = "black";
+    cs.forEach(c => c.color2 = undefined); cs[0].color = "red"; cs[1].color = "blue"; cs[2].color = "black";
     p.intel.push(cs[0], cs[1]);
     await gainIntel(p, cs[2]);
     return { ok: G.over && G.winners.length === 1 && p.alive,
@@ -140,17 +140,19 @@ const scenarios = [
              got: { finalSeat: final.i, aSpent: !a.hand.some(c => c.id === 9301), bSpent: !b.hand.some(c => c.id === 9302) } };
   }],
 
-  ['拓展牌库：99张、含威逼/利诱/双色、守恒基准更新', async () => {
+  ['牌库构成：基础81含双色红黑/蓝黑各3、无红蓝；危情+12=93', async () => {
     newGame(6, null, true);
     G.players.forEach(p => p.human = false);
     const all = [...G.deck, ...G.players.flatMap(p => p.hand)];
     const wb = all.filter(c => c.fn === "weibi").length;
     const ly = all.filter(c => c.fn === "liyou").length;
-    const du = all.filter(c => c.color2).length;
+    const rb = all.filter(c => c.color === "red" && c.color2 === "black").length;
+    const bb = all.filter(c => c.color === "blue" && c.color2 === "black").length;
+    const redBlue = all.filter(c => c.color2 === "blue" || (c.color === "blue" && c.color2 === "red")).length;
     const cs = cardCensus();
-    return { ok: G.totalCards === 99 && wb === 6 && ly === 6 && du === 6
-              && cs.total === 99 && cs.expect === 99 && cs.dup === 0,
-             got: { total: G.totalCards, wb, ly, du, census: cs } };
+    return { ok: G.totalCards === 93 && wb === 6 && ly === 6 && rb === 3 && bb === 3 && redBlue === 0
+              && cs.total === 93 && cs.dup === 0,
+             got: { total: G.totalCards, wb, ly, rb, bb, redBlue, census: cs } };
   }],
 
   ['威逼：目标AI交出手牌（黑牌优先），牌守恒', async () => {
@@ -185,7 +187,7 @@ const scenarios = [
   }],
 
   ['双色红黑：2黑再收红黑双色 → 第三黑致死', async () => {
-    newGame(6, null, true);
+    newGame(6);
     G.players.forEach(p => p.human = false);
     const p = G.players[1];
     p.char = { key: "guxiaomeng", name: "顾晓梦", covert: false, skill: "" };
@@ -198,17 +200,31 @@ const scenarios = [
     return { ok: !p.alive && p.revealed, got: { alive: p.alive } };
   }],
 
-  ['双色红蓝：2红再收红蓝双色 → 计入红色，潜伏获胜', async () => {
-    newGame(6, null, true);
+  ['双色红黑助胜：2红0黑收红黑 → 第三红制胜（黑仅1不致死）', async () => {
+    newGame(6);
     G.players.forEach(p => p.human = false);
     const p = G.players[1];
     p.faction = "QF"; p.mission = null;
     const r1 = G.deck.pop(), r2 = G.deck.pop(), d = G.deck.pop();
     r1.color = r2.color = "red"; r1.color2 = r2.color2 = undefined;
-    d.color = "red"; d.color2 = "blue";
+    d.color = "red"; d.color2 = "black";
     p.intel.push(r1, r2);
     await gainIntel(p, d);
     return { ok: G.over && G.winText.includes("潜伏"), got: { over: G.over, text: G.winText } };
+  }],
+
+  ['官方裁定·死亡优先：2红2黑收红黑（同凑三红三黑）→ 死亡不获胜', async () => {
+    newGame(6);
+    G.players.forEach(p => { p.human = false; p.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
+    const p = G.players[1];
+    p.faction = "QF"; p.mission = null;
+    const cards = [G.deck.pop(), G.deck.pop(), G.deck.pop(), G.deck.pop(), G.deck.pop()];
+    cards.forEach(c => c.color2 = undefined);
+    cards[0].color = cards[1].color = "red"; cards[2].color = cards[3].color = "black";
+    cards[4].color = "red"; cards[4].color2 = "black";
+    p.intel.push(cards[0], cards[1], cards[2], cards[3]);
+    await gainIntel(p, cards[4]);
+    return { ok: !p.alive && !G.over, got: { alive: p.alive, over: G.over, text: G.winText } };
   }],
 
   ['双面间谍：红蓝双色同时计入两色 → 任务达成', async () => {
@@ -216,10 +232,10 @@ const scenarios = [
     G.players.forEach(p => p.human = false);
     const p = G.players[1];
     p.faction = "JY"; p.mission = { key: "double", name: "双面间谍" };
-    const r = G.deck.pop(), b = G.deck.pop(), d = G.deck.pop();
-    r.color = "red"; r.color2 = undefined; b.color = "blue"; b.color2 = undefined;
-    d.color = "red"; d.color2 = "blue";
-    p.intel.push(r, b);
+    const r = G.deck.pop(), b = G.deck.pop(), r2c = G.deck.pop(), d = G.deck.pop();
+    [r, b, r2c, d].forEach(c => c.color2 = undefined);
+    r.color = "red"; b.color = "blue"; r2c.color = "red"; d.color = "blue";
+    p.intel.push(r, b, r2c);
     await gainIntel(p, d);
     return { ok: G.over && G.winners.length === 1 && G.winText.includes("双面间谍"),
              got: { over: G.over, text: G.winText } };
@@ -241,7 +257,7 @@ const scenarios = [
     p.char = { key: "yaojishi", name: "药剂师", covert: true, skill: "解毒" };
     p.charRevealed = false; p.faction = "QF"; p.mission = null;
     const b1 = G.deck.pop(), b2 = G.deck.pop(), b3 = G.deck.pop();
-    b1.color = b2.color = b3.color = "black"; b1.color2 = b2.color2 = b3.color2 = undefined;
+    b1.color = b2.color = b3.color = "black"; b1.color2 = b2.color2 = b3.color2 = undefined; b1.color2 = b2.color2 = b3.color2 = undefined;
     p.intel.push(b1, b2);
     const hand = p.hand.length;
     await gainIntel(p, b3);

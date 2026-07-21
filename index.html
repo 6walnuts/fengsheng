@@ -127,7 +127,6 @@
   .chip.red{background:var(--seal)}
   .chip.blue{background:var(--intel-blue)}
   .chip.black{background:#22252b;border-color:#555}
-  .chip.red.d2-blue{background:linear-gradient(135deg,var(--seal) 50%,var(--intel-blue) 50%)}
   .chip.red.d2-black{background:linear-gradient(135deg,var(--seal) 50%,#22252b 50%)}
   .chip.blue.d2-black{background:linear-gradient(135deg,var(--intel-blue) 50%,#22252b 50%)}
   .seat .s-dead-mark{position:absolute;right:6px;top:4px;color:var(--danger);font-size:12px;
@@ -164,7 +163,6 @@
   #transitToken.face-red{background:var(--seal);border:1px solid #e08578}
   #transitToken.face-blue{background:var(--intel-blue);border:1px solid #7ea8d0}
   #transitToken.face-black{background:#1e2128;border:1px solid #666}
-  #transitToken.face-red-blue{background:linear-gradient(135deg,var(--seal) 50%,var(--intel-blue) 50%);border:1px solid #aaa}
   #transitToken.face-red-black{background:linear-gradient(135deg,var(--seal) 50%,#1e2128 50%);border:1px solid #aaa}
   #transitToken.face-blue-black{background:linear-gradient(135deg,var(--intel-blue) 50%,#1e2128 50%);border:1px solid #aaa}
   @media (prefers-reduced-motion: reduce){ #transitToken{transition:none} }
@@ -375,7 +373,8 @@
     <p><b class="rule-k">回合流程</b>：摸两张牌 → <b>出牌阶段（一）</b> → 传递情报 → <b>出牌阶段（二）</b>。传递分三个窗口：<b>宣告时</b>可用【锁定】【调虎离山】【截获】；<b>到达某人面前时</b>可用【破译】【退回】【调包】；<b>决定接收时</b>不能再用任何牌。</p>
     <p><b class="rule-k">功能牌</b>：<b>锁定</b>——指定一名玩家，其必须接收本次情报（出牌阶段一或宣告时使用，优先于调虎离山）；<b>调虎离山</b>——指定一名玩家，其不能接收本次情报；<b>退回</b>——情报到你面前时反方向继续传递；<b>截获</b>——宣告时直接拉走情报，或他人即将收下时抢走；<b>破译</b>——偷看面朝下的情报；<b>调包</b>——弃此牌，从手牌任选一张换入传递，原情报收入手牌；<b>烧毁</b>——出牌阶段烧掉任意玩家一张黑色情报；<b>试探</b>——目标按真实身份执行牌上指令；<b>真伪莫辨</b>——每名存活玩家从牌库随机分得一张情报并必须接收；<b>识破</b>——抵销最新一张功能牌的效果，识破亦可被识破（连锁）。情报传递本身、传递方式与角色技能不可被识破；<b>平信</b>——无功能。</p>
     <p><b class="rule-k">绝密任务</b>：任务印在角色牌上——你的身份是打酱油时，胜利条件就是你角色自带的绝密任务。</p>
-    <p><b class="rule-k">拓展包《危情》</b>（可选）：牌库加入【威逼】（迫使一名玩家交给你一张手牌）、【利诱】（展示牌库顶两张，目标先选一张、你得另一张）与六张<b>双色情报</b>——双色牌同时计入两种颜色（红黑既算红也算黑！）；酱油任务池新增「双面间谍」（红蓝各集两张）。</p>
+    <p><b class="rule-k">双色情报</b>（基础牌）：红黑×3、蓝黑×3，同时计入两种颜色——红黑既算红也算黑；同时凑满制胜与三张黑时<b>先判死亡</b>。</p>
+    <p><b class="rule-k">拓展包《危情》</b>（可选）：牌库加入【威逼】（迫使一名玩家交给你一张手牌）与【利诱】（展示牌库顶两张，目标先选一张、你得另一张）。</p>
     <p><b class="rule-k">拓展包《绝密行动》</b>（可选）：强化打酱油——任务池新增「纵火狂」（累计烧毁三张黑情报）、「劫收专员」（靠【截获】收下两张情报）、「完美中立」（第六轮结束时存活且无红蓝情报）；每名酱油开局获得一条「耳目密报」，得知一名玩家的真实身份。</p>
     <p><b class="rule-k">拓展包《绝密档案》</b>（可选）：角色池加入八位新角色——报童（号外）、裁缝（量体）、车夫（快马）、灰狐（匿影）、药剂师（解毒）、守夜人（守灵）、情妇（枕风）、老会计（清账）。</p>
     <p><b class="rule-k">暗置角色</b>：每人一张角色牌，部分角色开局暗置（他人只见座位代号）。暗置技能首次触发时当众翻开，并摸一张牌。公开角色（顾晓梦、金生火、王田香、柒佰、老枪、小翠）开局即亮明。</p>
@@ -554,7 +553,8 @@ let cardSeq = 0;
 function buildDeck(expansion){
   const colors=[], marks=[], fns=[];
   const push=(arr,v,k)=>{ for(let i=0;i<k;i++) arr.push(v); };
-  push(colors,"red",25); push(colors,"blue",25); push(colors,"black",31);
+  push(colors,"red",23); push(colors,"blue",23); push(colors,"black",29);
+  push(colors,"red-black",3); push(colors,"blue-black",3);   // 双色情报（黑名单基础牌）
   push(marks,"zhida",27); push(marks,"midian",27); push(marks,"wenben",27);
   push(fns,"jiehuo",12); push(fns,"poyi",12);
   push(fns,"suoding",5); push(fns,"diaohu",4); push(fns,"tuihui",4);
@@ -565,6 +565,7 @@ function buildDeck(expansion){
   const deck=[];
   for(let i=0;i<81;i++){
     const c={ id:++cardSeq, color:colors[i], mark:marks[i], fn:fns[i] };
+    if(c.color.includes("-")){ const [a,b]=c.color.split("-"); c.color=a; c.color2=b; }
     if(c.fn==="shitan"){ c.probe=probeKeys[pi%4]; pi++; }
     deck.push(c);
   }
@@ -579,10 +580,6 @@ function buildDeck(expansion){
     // 威逼×6、利诱×6（红/蓝/黑各2）
     for(const co of ["red","red","blue","blue","black","black"]) add(co,null,"weibi");
     for(const co of ["red","red","blue","blue","black","black"]) add(co,null,"liyou");
-    // 双色情报×6
-    add("red","blue","poyi");  add("red","blue","jiehuo");
-    add("red","black","none"); add("red","black","poyi");
-    add("blue","black","jiehuo"); add("blue","black","none");
   }
   return shuffle(deck);
 }
@@ -1031,8 +1028,10 @@ function knownColorTo(p){ const kc=knownCardTo(p); return kc? kc.color : null; }
 /* AI 视角下双色牌的等效颜色：带黑=烫手山芋，含本方色=想要 */
 function aiColorRead(q, card){
   if(!card.color2) return card.color;
-  if(cardHasColor(card,"black")) return "black";
   const oc=ownColor(q);
+  // 含本方色的双色：若能直接制胜且不致死（黑<2），当作本方色抢
+  if(oc && cardHasColor(card,oc) && countColor(q,oc)>=2 && countColor(q,"black")<2) return oc;
+  if(cardHasColor(card,"black")) return "black";
   return (oc && cardHasColor(card,oc))? oc : card.color;
 }
 
@@ -2332,16 +2331,16 @@ async function gainIntel(p, card){
       drawCards(q,1);
     }
   }
-  checkWinAfterGain(p);
-  if(G.over) return;
-
+  // 官方裁定：胜利与死亡同时触发时（双色情报），先判死亡
   if(countColor(p,"black")>=3){
     if(p.faction==="JY" && p.mission.key==="martyr" && G.round>=3){
       endGame([p], `${p.name} 收到三张黑色情报「殉道」——机密任务完成，单独获胜！`);
       return;
     }
     await killPlayer(p);
+    return;
   }
+  checkWinAfterGain(p);
 }
 
 function checkNeutralWin(){
@@ -2509,7 +2508,7 @@ const FN_TIMING = {
   weibi:"出牌阶段",
   liyou:"出牌阶段",
 };
-const FN_COUNT = { jiehuo:"12", poyi:"12 +2*", suoding:"5", diaohu:"4", tuihui:"4", zhenwei:"3", shipo:"3", diaobao:"10", shaohui:"12", shitan:"11", none:"5 +2*", weibi:"6*", liyou:"6*" };
+const FN_COUNT = { jiehuo:"12", poyi:"12", suoding:"5", diaohu:"4", tuihui:"4", zhenwei:"3", shipo:"3", diaobao:"10", shaohui:"12", shitan:"11", none:"5", weibi:"6*", liyou:"6*" };
 let wikiTab = "chars";
 function charItem(c, packTag){
   const m=missionOfChar(c.key);
@@ -2538,10 +2537,10 @@ function wikiCardsHtml(){
     </table></div>
     <div class="wiki-sec">牌 库 构 成</div>
     <table class="wiki-table">
-      <tr><th>基础 81 张</th><td>颜色：红 25 / 蓝 25 / 黑 31　印章：直达 27 / 密电 27 / 文本 27</td></tr>
-      <tr><th>危情 +18 张*</th><td>威逼 ×6、利诱 ×6（红蓝黑各2）；双色情报 ×6（红蓝/红黑/蓝黑各2，同时计入两种颜色）</td></tr>
+      <tr><th>基础 81 张</th><td>颜色：红 23 / 蓝 23 / 黑 29 / 红黑双色 3 / 蓝黑双色 3　印章：直达 27 / 密电 27 / 文本 27</td></tr>
+      <tr><th>危情 +12 张*</th><td>威逼 ×6、利诱 ×6（红蓝黑各2）</td></tr>
     </table>
-    <div class="wiki-note">带 * 的数量为《危情》拓展启用时加入。试探牌共四种指令（查潜伏 / 查军情 / 查酱油 / 甄别酱油）各占 1/4。收到三张黑色情报（含双色带黑）立即出局。</div>`;
+    <div class="wiki-note">带 * 的数量为《危情》拓展启用时加入。试探牌共四种指令（查潜伏 / 查军情 / 查酱油 / 甄别酱油）各占 1/4。收到三张黑色情报（含双色带黑）立即出局；双色情报同时凑满制胜与致死时，<b>先判死亡</b>（官方裁定）。</div>`;
 }
 function wikiMissionsHtml(){
   const mrow=(m,tag)=>`<tr><td><b style="color:var(--paper-dim)">${m.name}</b>${tag?`<span class="wiki-tag pack">${tag}</span>`:""}</td><td>${m.desc}</td></tr>`;
