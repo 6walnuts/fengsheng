@@ -100,20 +100,23 @@ const scenarios = [
              got: { over: G.over, text: G.winText, alive: p.alive } };
   }],
 
-  ['调包：knownTo 重置为调包者、tamperedBy 设置、牌流转正确', async () => {
+  ['调包（官方）：原情报弃入弃牌堆，调包牌面朝下换入传递', async () => {
     G.players.forEach(p => p.human = false);
     const q = G.players[2];
-    const black = { id: 9001, color: "black", mark: "midian", fn: "none" };
-    const blue = { id: 9002, color: "blue", mark: "wenben", fn: "none" };
-    G.deck.push(black); G.deck.pop(); // 保持守恒：black 计入场上
-    q.hand.push(blue); G.deck.pop();  // blue 顶替一张牌库牌（简化守恒）
-    G.transit = { id: 99, card: black, sender: 1, mode: "midian", dir: "cw", faceUp: false,
-                  pos: q.i, knownTo: new Set([1]), redirects: 0, tamperedBy: null };
-    await doDiaobao(q, blue);
+    const black = G.deck.pop(); black.color = "black"; black.color2 = undefined;
+    const db = G.deck.pop(); db.fn = "diaobao"; db.color = "blue"; db.color2 = undefined;
+    q.hand.push(db);
+    G.transit = { id: 99, card: black, sender: 1, mode: "wenben", dir: "cw", faceUp: true,
+                  pos: q.i, knownTo: new Set([1]), locked: new Set(), banned: new Set(),
+                  offers: 0, tamperedBy: null };
+    await doDiaobao(q, db);
     const tr = G.transit;
-    return { ok: tr.card.id === 9002 && tr.tamperedBy === q.i && tr.knownTo.size === 1
-              && tr.knownTo.has(q.i) && q.hand.some(c => c.id === 9001),
-             got: { card: tr.card.id, tampered: tr.tamperedBy, known: [...tr.knownTo] } };
+    const ok = tr.card === db && tr.tamperedBy === q.i && tr.faceUp === false
+      && tr.knownTo.size === 1 && tr.knownTo.has(q.i)
+      && G.discard.includes(black) && !q.hand.includes(db);
+    G.discard.push(tr.card); G.transit = null;   // 收尾保守恒
+    return { ok, got: { card: tr.card.fn, tampered: tr.tamperedBy, faceUp: tr.faceUp,
+                        oldDiscarded: G.discard.includes(black) } };
   }],
 
   ['牌库耗尽自动重洗弃牌堆', async () => {
@@ -163,7 +166,7 @@ const scenarios = [
     const wb = G.deck.pop(); wb.fn = "weibi"; wb.color = "red"; wb.color2 = undefined;
     p.hand.push(wb);
     t.hand.forEach(c => { c.color = "red"; c.color2 = undefined; });
-    const bk = G.deck.pop(); bk.color = "black"; bk.color2 = undefined; t.hand.push(bk);
+    const bk = G.deck.pop(); bk.color = "black"; bk.color2 = undefined; bk.fn = "none"; t.hand.push(bk);
     const ph = p.hand.length, th = t.hand.length;
     await resolveWeibi(p, wb, t);
     const cs = cardCensus();
@@ -485,8 +488,9 @@ const scenarios = [
     prober.hand.push(st); t.hand.push(sp1); helper.hand.push(sp2);
     aiWantCounter = (q, user, kind, ctx, cancelled) => cancelled ? q === helper : q === t;  // t 反制，helper 恢复
     await resolveShitan(prober, st, t);
-    return { ok: t.hint === "QF",   // 试探最终生效，暴露潜伏身份
-             got: { hint: t.hint } };
+    const pv = viewOf(prober)[t.i];
+    return { ok: pv.hint === "QF",   // 试探最终生效，试探者私有认知确认潜伏
+             got: { hint: pv.hint } };
   }],
 
   ['经典模式：无黑名单牌与双色、81张、无宣告窗口牌', async () => {
@@ -555,24 +559,49 @@ const scenarios = [
              got: { receiver: receiver && receiver.i, senderDrew: sender.hand.length - sh, revealed: sender.charRevealed } };
   }],
 
-  ['试探否定排除：A探军情落空 → 排除潜伏并显示徽章', async () => {
+  ['试探私密：结果只进试探者认知，旁观者与全局一无所知', async () => {
     G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
-    const prober = G.players[1], t = G.players[2];
-    t.faction = "JQ"; t.hint = null; t.excluded = [];
+    const prober = G.players[1], t = G.players[2], bystander = G.players[3];
+    t.faction = "JQ";
     await probeOne(prober, { probe: "A" }, t);
-    const badge = factionBadge(t);
-    return { ok: t.excluded.includes("QF") && !t.hint && badge.includes("非潜伏"),
-             got: { excluded: t.excluded, hint: t.hint, badge } };
+    const pv = viewOf(prober)[t.i], bv = viewOf(bystander)[t.i];
+    return { ok: t.hint == null && pv.excluded.includes("QF")
+              && !bv.hint && bv.excluded.length === 0,
+             got: { globalHint: t.hint, proberKnows: pv.excluded, bystander: bv } };
   }],
 
-  ['两次排除推理闭环：非潜伏+非酱油 → 自动确认军情处', async () => {
+  ['真人试探排除 → 座位徽章显示"非潜伏"', async () => {
+    G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
+    const prober = G.players[0], t = G.players[2];
+    prober.human = true;
+    t.faction = "JQ";
+    await probeOne(prober, { probe: "A" }, t);
+    const badge = factionBadge(t);
+    prober.human = false;
+    return { ok: badge.includes("非潜伏"), got: { badge } };
+  }],
+
+  ['两次排除推理闭环：试探者私有视角自动确认军情处', async () => {
     G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
     const prober = G.players[1], t = G.players[2];
-    t.faction = "JQ"; t.hint = null; t.excluded = [];
+    t.faction = "JQ";
     await probeOne(prober, { probe: "A" }, t);   // 不是潜伏
     await probeOne(prober, { probe: "C" }, t);   // 不是酱油
-    return { ok: t.hint === "JQ" && t.excluded.length === 2,
-             got: { hint: t.hint, excluded: t.excluded } };
+    const pv = viewOf(prober)[t.i];
+    return { ok: pv.hint === "JQ" && prober.know[t.i].excluded.length === 2,
+             got: { hint: pv.hint, excluded: prober.know[t.i].excluded } };
+  }],
+
+  ['计数推理：其余人全排除酱油 → 剩下两人必为酱油', async () => {
+    G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
+    const me = G.players[0];
+    ["QF","JQ","JQ","QF","JY","JY"].forEach((f, i) => { G.players[i].faction = f; G.players[i].mission = f==="JY"? MISSION_DEFS.collect3 : null; });
+    knowSlot(me, 1).excluded.push("JY");
+    knowSlot(me, 2).excluded.push("JY");
+    knowSlot(me, 3).excluded.push("JY");
+    const v = viewOf(me);
+    return { ok: v[4].hint === "JY" && v[5].hint === "JY" && !v[1].hint,
+             got: { p4: v[4], p5: v[5], p1: v[1] } };
   }],
 
   ['老鬼城府：被试探免疫+摸3张(翻开1+城府2)，不留线索', async () => {
@@ -795,13 +824,58 @@ const scenarios = [
              got: { winners: G.winners.map(x => x.name) } };
   }],
 
-  ['试探D命中：展示手牌同时排除酱油', async () => {
+  ['试探D命中：试探者私有排除酱油', async () => {
     G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
     const prober = G.players[1], t = G.players[2];
-    t.faction = "QF"; t.hint = null; t.excluded = [];
+    t.faction = "QF";
     await probeOne(prober, { probe: "D" }, t);
-    return { ok: t.excluded.includes("JY") && !t.hint,
-             got: { excluded: t.excluded, hint: t.hint } };
+    return { ok: prober.know[t.i].excluded.includes("JY") && t.hint == null,
+             got: { excluded: prober.know[t.i].excluded } };
+  }],
+
+  ['真伪莫辨（官方）：使用者先选，AI 优先挑本方颜色', async () => {
+    G.players.forEach(p => { p.human = false; p.hand = p.hand.filter(c => c.fn !== "shipo" ? true : (G.discard.push(c), false)); });
+    const p = G.players[1];
+    p.faction = "QF"; p.mission = null;
+    const zw = G.deck.pop(); zw.fn = "zhenwei"; zw.color = "red"; zw.color2 = undefined;
+    p.hand.push(zw);
+    const n = alivePlayers().length;
+    for (let i = 0; i < n; i++) {
+      const c = G.deck[G.deck.length - 1 - i];
+      c.color = i === 0 ? "red" : "blue"; c.color2 = undefined;   // 顶部 1红5蓝
+    }
+    const before = G.players.map(q => q.intel.length);
+    await resolveZhenwei(p, zw);
+    const cs = cardCensus();
+    const allGot = G.players.every((q, i) => !q.alive || q.intel.length - before[i] >= 1 || G.over);
+    return { ok: countColor(p, "red") === 1 && allGot && cs.total === cs.expect && cs.dup === 0,
+             got: { pRed: countColor(p, "red"), allGot, census: cs } };
+  }],
+
+  ['阵营全灭：唯一潜伏出局 → 军情处全体获胜', async () => {
+    G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
+    ["QF","JQ","JQ","JQ","JQ","JY"].forEach((f, i) => { G.players[i].faction = f; G.players[i].mission = f==="JY"? MISSION_DEFS.collect3 : null; });
+    const victim = G.players[0]; victim.human = false;
+    const bs = [G.deck.pop(), G.deck.pop(), G.deck.pop()];
+    bs.forEach(c => { c.color = "black"; c.color2 = undefined; });
+    victim.intel.push(...bs);
+    await killPlayer(victim);
+    const jqAllWin = G.players.filter(x => x.faction === "JQ").every(x => G.winners.includes(x));
+    return { ok: G.over && jqAllWin && G.winText.includes("军情处获胜"),
+             got: { over: G.over, text: G.winText } };
+  }],
+
+  ['独存酱油：只剩一名打酱油存活 → 单独获胜', async () => {
+    G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
+    ["QF","JQ","QF","JQ","JY","JY"].forEach((f, i) => { G.players[i].faction = f; G.players[i].mission = f==="JY"? MISSION_DEFS.collect3 : null; });
+    [1, 2, 3, 4].forEach(i => { const q = G.players[i]; q.alive = false; q.revealed = true; G.discard.push(...q.hand.splice(0), ...q.intel.splice(0)); });
+    const victim = G.players[0], lone = G.players[5];
+    const bs = [G.deck.pop(), G.deck.pop(), G.deck.pop()];
+    bs.forEach(c => { c.color = "black"; c.color2 = undefined; });
+    victim.intel.push(...bs);
+    await killPlayer(victim);
+    return { ok: G.over && G.winners.length === 1 && G.winners[0] === lone && G.winText.includes("幸存者"),
+             got: { over: G.over, text: G.winText } };
   }],
 ];
 
