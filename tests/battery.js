@@ -157,7 +157,8 @@ const scenarios = [
 
   ['威逼：目标AI交出手牌（黑牌优先），牌守恒', async () => {
     newGame(6, null, true);
-    G.players.forEach(p => p.human = false);
+    G.players.forEach(p => { p.human = false; p.hand = p.hand.filter(c => c.fn !== "shipo" ? true : (G.discard.push(c), false)); });
+    G.players.forEach(p => { p.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; p.charRevealed = true; });
     const p = G.players[1], t = G.players[2];
     const wb = G.deck.pop(); wb.fn = "weibi"; wb.color = "red"; wb.color2 = undefined;
     p.hand.push(wb);
@@ -174,7 +175,8 @@ const scenarios = [
 
   ['利诱：展示牌库顶两张，双方各得一张，守恒', async () => {
     newGame(6, null, true);
-    G.players.forEach(p => p.human = false);
+    G.players.forEach(p => { p.human = false; p.hand = p.hand.filter(c => c.fn !== "shipo" ? true : (G.discard.push(c), false)); });
+    G.players.forEach(p => { p.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; p.charRevealed = true; });
     const p = G.players[1], t = G.players[2];
     const ly = G.deck.pop(); ly.fn = "liyou"; ly.color = "blue"; ly.color2 = undefined;
     p.hand.push(ly);
@@ -189,6 +191,7 @@ const scenarios = [
   ['双色红黑：2黑再收红黑双色 → 第三黑致死', async () => {
     newGame(6);
     G.players.forEach(p => p.human = false);
+    G.players.forEach(p => { p.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; p.charRevealed = true; });
     const p = G.players[1];
     p.char = { key: "guxiaomeng", name: "顾晓梦", covert: false, skill: "" };
     p.faction = "QF"; p.mission = null;
@@ -203,6 +206,7 @@ const scenarios = [
   ['双色红黑助胜：2红0黑收红黑 → 第三红制胜（黑仅1不致死）', async () => {
     newGame(6);
     G.players.forEach(p => p.human = false);
+    G.players.forEach(p => { p.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; p.charRevealed = true; });
     const p = G.players[1];
     p.faction = "QF"; p.mission = null;
     const r1 = G.deck.pop(), r2 = G.deck.pop(), d = G.deck.pop();
@@ -230,6 +234,7 @@ const scenarios = [
   ['双面间谍：红蓝双色同时计入两色 → 任务达成', async () => {
     newGame(6, null, true);
     G.players.forEach(p => p.human = false);
+    G.players.forEach(p => { p.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; p.charRevealed = true; });
     const p = G.players[1];
     p.faction = "JY"; p.mission = { key: "double", name: "双面间谍" };
     const r = G.deck.pop(), b = G.deck.pop(), r2c = G.deck.pop(), d = G.deck.pop();
@@ -253,6 +258,7 @@ const scenarios = [
   ['药剂师解毒：收第3张黑弃两手牌销毁，免死', async () => {
     newGame(6, null, { archive: true });
     G.players.forEach(p => p.human = false);
+    G.players.forEach(p => { p.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; p.charRevealed = true; });
     const p = G.players[1];
     p.char = { key: "yaojishi", name: "药剂师", covert: true, skill: "解毒" };
     p.charRevealed = false; p.faction = "QF"; p.mission = null;
@@ -288,6 +294,7 @@ const scenarios = [
   ['纵火狂：烧毁第3张黑色情报 → 单独获胜', async () => {
     newGame(6, null, { action: true });
     G.players.forEach(p => p.human = false);
+    G.players.forEach(p => { p.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; p.charRevealed = true; });
     const p = G.players[1], t = G.players[2];
     p.faction = "JY"; p.mission = { key: "arsonist", name: "纵火狂" };
     p.burnCount = 2;
@@ -301,6 +308,7 @@ const scenarios = [
   ['劫收专员：第2次经截获收下情报 → 单独获胜', async () => {
     newGame(6, null, { action: true });
     G.players.forEach(p => p.human = false);
+    G.players.forEach(p => { p.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; p.charRevealed = true; });
     const p = G.players[1];
     p.faction = "JY"; p.mission = { key: "grabber", name: "劫收专员" };
     p.grabCount = 1;
@@ -315,6 +323,7 @@ const scenarios = [
   ['完美中立：第6轮结束无红蓝且存活 → 单独获胜', async () => {
     newGame(6, null, { action: true });
     G.players.forEach(p => p.human = false);
+    G.players.forEach(p => { p.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; p.charRevealed = true; });
     const p = G.players[1];
     p.faction = "JY"; p.mission = { key: "neutral", name: "完美中立" };
     const b = G.deck.pop(); b.color = "black"; b.color2 = undefined;
@@ -335,6 +344,7 @@ const scenarios = [
   ['灰狐匿影：拒收暗置情报摸一张（每回合限一次）', async () => {
     newGame(6, null, { archive: true });
     G.players.forEach(p => p.human = false);
+    G.players.forEach(p => { p.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; p.charRevealed = true; });
     const q = G.players[2];
     q.char = { key: "huihu", name: "灰狐", covert: true, skill: "匿影" };
     q.charRevealed = false; q.turnUsed = {};
@@ -351,6 +361,7 @@ const scenarios = [
   }],
 
   ['绝密任务绑定角色：每名酱油的任务=其角色牌任务', async () => {
+    newGame(6);
     const jys = G.players.filter(p => p.faction === "JY");
     const bound = jys.every(p => p.mission && p.mission.key === CHAR_MISSION[p.char.key]);
     return { ok: jys.length > 0 && bound,
@@ -564,6 +575,226 @@ const scenarios = [
              got: { hint: t.hint, excluded: t.excluded } };
   }],
 
+  ['老鬼城府：被试探免疫+摸3张(翻开1+城府2)，不留线索', async () => {
+    G.players.forEach(p => p.human = false);
+    const prober = G.players[1], t = G.players[2];
+    t.char = OFFICIAL_CHARS.find(c => c.key === "o_laogui");
+    t.charRevealed = false; t.faction = "QF"; t.hint = null;
+    const hand = t.hand.length;
+    await probeOne(prober, { probe: "A" }, t);
+    return { ok: t.hint === null && t.hand.length === hand + 3 && t.charRevealed,
+             got: { hint: t.hint, drew: t.hand.length - hand } };
+  }],
+
+  ['老枪沉着：被锁定时翻开+摸2（合计+3），锁定照常生效', async () => {
+    G.players.forEach(p => { p.human = false; p.hand = p.hand.filter(c => c.fn !== "shipo" ? true : (G.discard.push(c), false)); });
+    const p = G.players[1], t = G.players[2];
+    t.char = OFFICIAL_CHARS.find(c => c.key === "o_laoqiang");
+    t.charRevealed = false;
+    const sd = G.deck.pop(); sd.fn = "suoding"; sd.color = "red"; sd.color2 = undefined;
+    p.hand.push(sd);
+    const hand = t.hand.length;
+    await resolveSuoding(p, sd, t);
+    return { ok: G.pendingLocks.includes(t.i) && t.hand.length === hand + 3 && t.charRevealed,
+             got: { locked: G.pendingLocks, drew: t.hand.length - hand } };
+  }],
+
+  ['柒佰神算：使用锁定后摸2交1（净+1），受牌人+1', async () => {
+    G.players.forEach(p => { p.human = false; p.hand = p.hand.filter(c => c.fn !== "shipo" ? true : (G.discard.push(c), false)); });
+    const p = G.players[1], t = G.players[2];
+    p.char = OFFICIAL_CHARS.find(c => c.key === "o_qibai");
+    const sd = G.deck.pop(); sd.fn = "suoding"; sd.color = "red"; sd.color2 = undefined;
+    p.hand.push(sd);
+    const ph = p.hand.length, othersBefore = G.players.filter(q => q !== p).map(q => q.hand.length);
+    await resolveSuoding(p, sd, t);
+    const othersDelta = G.players.filter(q => q !== p).reduce((a, q, i) => a + q.hand.length - othersBefore[i], 0);
+    // -锁定牌 +摸2 -交1 = 净0；老枪不在场无沉着 → 其他人合计 +1
+    return { ok: p.hand.length === ph - 1 + 2 - 1 && othersDelta === 1 && G.pendingLocks.includes(t.i),
+             got: { pDelta: p.hand.length - ph, othersDelta } };
+  }],
+
+  ['礼服绅士：获得黑色情报摸两张', async () => {
+    G.players.forEach(p => p.human = false);
+    const p = G.players[1];
+    p.char = OFFICIAL_CHARS.find(c => c.key === "o_lifu");
+    p.faction = "QF"; p.mission = null;
+    const b = G.deck.pop(); b.color = "black"; b.color2 = undefined;
+    const hand = p.hand.length;
+    await gainIntel(p, b);
+    return { ok: p.alive && p.hand.length === hand + 2 && countColor(p, "black") === 1,
+             got: { drew: p.hand.length - hand } };
+  }],
+
+  ['礼服救美：女性角色濒死 → 亮身份烧2黑救活', async () => {
+    G.players.forEach(p => p.human = false);
+    const dying = G.players[1], hero = G.players[2];
+    dying.char = OFFICIAL_CHARS.find(c => c.key === "o_dameinv");
+    dying.faction = "QF"; dying.mission = null;
+    hero.char = OFFICIAL_CHARS.find(c => c.key === "o_lifu");
+    hero.faction = "JY"; hero.mission = MISSION_DEFS.femalewin; hero.revealed = false;
+    const bs = [G.deck.pop(), G.deck.pop(), G.deck.pop()];
+    bs.forEach(c => { c.color = "black"; c.color2 = undefined; });
+    dying.intel.push(...bs);
+    await killPlayer(dying);
+    const cs = cardCensus();
+    return { ok: dying.alive && countColor(dying, "black") === 1 && hero.revealed
+              && cs.total === cs.expect && cs.dup === 0,
+             got: { alive: dying.alive, blacks: countColor(dying, "black"), heroRevealed: hero.revealed, census: cs } };
+  }],
+
+  ['闪灵魅影：翻开烧掉他人至多三张黑情报', async () => {
+    G.players.forEach(p => p.human = false);
+    const p = G.players[1], t = G.players[2];
+    p.char = OFFICIAL_CHARS.find(c => c.key === "o_shanling");
+    p.charRevealed = false;
+    const bs = [G.deck.pop(), G.deck.pop()];
+    bs.forEach(c => { c.color = "black"; c.color2 = undefined; });
+    t.intel.push(...bs);
+    await skillShanling(p, t);
+    const cs = cardCensus();
+    return { ok: countColor(t, "black") === 0 && p.charRevealed && cs.total === cs.expect && cs.dup === 0,
+             got: { blacks: countColor(t, "black"), revealed: p.charRevealed, census: cs } };
+  }],
+
+  ['血染玫瑰绽放：顶两张含黑 → 弃牌堆三张黑栽赃致死', async () => {
+    G.players.forEach(p => p.human = false);
+    const p = G.players[1], t = G.players[2];
+    p.char = OFFICIAL_CHARS.find(c => c.key === "o_xueran");
+    p.charRevealed = false;
+    t.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" };
+    t.faction = "JQ"; t.mission = null;
+    const top = [G.deck[G.deck.length - 1], G.deck[G.deck.length - 2], G.deck[G.deck.length - 3]];
+    top.forEach(c => { c.color = "black"; c.color2 = undefined; });  // 顶1张会被翻开补偿摸走
+    const extra = G.deck.splice(0, 1)[0]; extra.color = "black"; extra.color2 = undefined;
+    G.discard.push(extra);
+    await skillXueran(p, t);
+    const cs = cardCensus();
+    return { ok: !t.alive && p.charRevealed && cs.total === cs.expect && cs.dup === 0,
+             got: { tAlive: t.alive, census: cs } };
+  }],
+
+  ['老金藏锋：功能牌被识破 → 翻开摸5放回2（净+4）', async () => {
+    G.players.forEach(p => { p.human = false; p.hand = p.hand.filter(c => c.fn !== "shipo" ? true : (G.discard.push(c), false)); });
+    const p = G.players[1], counter = G.players[2];
+    p.char = OFFICIAL_CHARS.find(c => c.key === "o_laojin");
+    p.charRevealed = false;
+    const zw = G.deck.pop(); zw.fn = "zhenwei"; zw.color = "red"; zw.color2 = undefined;
+    const sp = G.deck.pop(); sp.fn = "shipo"; sp.color = "blue"; sp.color2 = undefined;
+    p.hand.push(zw); counter.hand.push(sp);
+    aiWantCounter = (q, user, kind, ctx, cancelled) => !cancelled;
+    const h = p.hand.length, dtop = G.deck.length;
+    await resolveZhenwei(p, zw);
+    // -真伪牌 +翻开1 +藏锋5 -放回2 = 净+3；牌库 -1翻开 -5摸 +2放回
+    return { ok: p.hand.length === h + 3 && p.charRevealed && G.deck.length === dtop - 4,
+             got: { handDelta: p.hand.length - h, revealed: p.charRevealed, deckDelta: G.deck.length - dtop } };
+  }],
+
+  ['老金韬晦：获得黑色情报后重新盖伏角色牌', async () => {
+    G.players.forEach(p => p.human = false);
+    const p = G.players[1];
+    p.char = OFFICIAL_CHARS.find(c => c.key === "o_laojin");
+    p.charRevealed = true; p.faction = "QF"; p.mission = null;
+    const b = G.deck.pop(); b.color = "black"; b.color2 = undefined;
+    await gainIntel(p, b);
+    return { ok: p.alive && p.charRevealed === false && countColor(p, "black") === 1,
+             got: { covered: !p.charRevealed } };
+  }],
+
+  ['峨嵋峰金蝉：无截获牌也可翻开视为截获', async () => {
+    G.players.forEach(p => { p.human = false; p.hand = p.hand.filter(c => c.fn !== "jiehuo" ? true : (G.discard.push(c), false)); });
+    const receiver = G.players[1], q = G.players[3];
+    q.char = OFFICIAL_CHARS.find(c => c.key === "o_emeifeng");
+    q.charRevealed = false;
+    aiWantIntercept = () => true;
+    const c = G.deck.pop(); c.color = "red"; c.color2 = undefined;
+    G.transit = { id: 91, card: c, sender: 0, mode: "midian", dir: "cw", faceUp: false,
+                  pos: receiver.i, knownTo: new Set([0]), locked: new Set(), banned: new Set(),
+                  offers: 0, tamperedBy: null };
+    const final = await interceptWindow(receiver);
+    G.discard.push(c); G.transit = null;
+    return { ok: final === q && q.charRevealed,
+             got: { finalSeat: final && final.i, revealed: q.charRevealed } };
+  }],
+
+  ['职业杀手补刀：黑直达收下后补置手牌黑情报 → 击杀', async () => {
+    G.players.forEach(p => p.human = false);
+    const sd = G.players[1], t = G.players[2];
+    sd.char = OFFICIAL_CHARS.find(c => c.key === "o_shashou");
+    t.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" };
+    t.faction = "JQ"; t.mission = null; t.revealed = true;
+    sd.faction = "QF"; sd.mission = null;
+    sd.hand.forEach(c => { c.color = "red"; c.color2 = undefined; });  // 手里只留 hb 一张黑
+    const hb = G.deck.pop(); hb.color = "black"; hb.color2 = undefined;
+    sd.hand.push(hb);
+    const b0 = G.deck.pop(); b0.color = "black"; b0.color2 = undefined;
+    t.intel.push(b0);
+    const c = G.deck.pop(); c.color = "black"; c.color2 = undefined;
+    G.transit = { id: 90, card: c, sender: sd.i, mode: "zhida", dir: null, faceUp: false,
+                  pos: t.i, knownTo: new Set([sd.i]), locked: new Set(), banned: new Set(),
+                  offers: 0, tamperedBy: null };
+    await gainIntel(t, c);
+    G.transit = null;
+    const cs = cardCensus();
+    return { ok: !t.alive && !sd.hand.includes(hb) && cs.total === cs.expect && cs.dup === 0,
+             got: { tAlive: t.alive, knifeUsed: !sd.hand.includes(hb), census: cs } };
+  }],
+
+  ['职业操守：黑情报致第二名玩家死亡 → 杀手单独获胜', async () => {
+    G.players.forEach(p => p.human = false);
+    const sd = G.players[1], t = G.players[2];
+    sd.faction = "JY"; sd.mission = MISSION_DEFS.assassin;
+    t.faction = "JQ"; t.mission = null;
+    G.deathCount = 1;   // 已有一名玩家死亡
+    const bs = [G.deck.pop(), G.deck.pop()];
+    bs.forEach(c => { c.color = "black"; c.color2 = undefined; });
+    t.intel.push(...bs);
+    const c = G.deck.pop(); c.color = "black"; c.color2 = undefined;
+    G.transit = { id: 89, card: c, sender: sd.i, mode: "zhida", dir: null, faceUp: false,
+                  pos: t.i, knownTo: new Set([sd.i]), locked: new Set(), banned: new Set(),
+                  offers: 0, tamperedBy: null };
+    await gainIntel(t, c);
+    G.transit = null;
+    return { ok: G.over && G.winners.length === 1 && G.winners[0] === sd && G.winText.includes("职业操守"),
+             got: { over: G.over, text: G.winText } };
+  }],
+
+  ['斩草除根：潜伏全灭 → 酱油任务达成获胜', async () => {
+    G.players.forEach(p => { p.human = false; p.faction = "JQ"; p.mission = null; });
+    const victim = G.players[1], j = G.players[3];
+    victim.faction = "QF";
+    j.faction = "JY"; j.mission = MISSION_DEFS.qfwipe;
+    const bs = [G.deck.pop(), G.deck.pop(), G.deck.pop()];
+    bs.forEach(c => { c.color = "black"; c.color2 = undefined; });
+    victim.intel.push(...bs);
+    await killPlayer(victim);
+    return { ok: G.over && G.winners.includes(j) && G.winText.includes("斩草除根"),
+             got: { over: G.over, text: G.winText } };
+  }],
+
+  ['红色档案：酱油集齐三红 → 单独获胜', async () => {
+    G.players.forEach(p => p.human = false);
+    const p = G.players[1];
+    p.faction = "JY"; p.mission = MISSION_DEFS.red3;
+    const rs = [G.deck.pop(), G.deck.pop(), G.deck.pop()];
+    rs.forEach(c => { c.color = "red"; c.color2 = undefined; });
+    p.intel.push(rs[0], rs[1]);
+    await gainIntel(p, rs[2]);
+    return { ok: G.over && G.winners.length === 1 && G.winText.includes("红色档案"),
+             got: { over: G.over, text: G.winText } };
+  }],
+
+  ['义气+红袖招连锁：柒佰获胜带女性共胜，红袖招酱油跟进', async () => {
+    G.players.forEach(p => { p.human = false; p.faction = "JQ"; p.mission = null; });
+    const w = G.players[1], fem = G.players[2], j = G.players[3];
+    w.char = OFFICIAL_CHARS.find(c => c.key === "o_qibai");
+    w.faction = "QF";
+    fem.char = OFFICIAL_CHARS.find(c => c.key === "o_shanling");
+    j.faction = "JY"; j.mission = MISSION_DEFS.femalewin;
+    endGame([w], "测试胜利");
+    return { ok: G.winners.includes(w) && G.winners.includes(fem) && G.winners.includes(j),
+             got: { winners: G.winners.map(x => x.name) } };
+  }],
+
   ['试探D命中：展示手牌同时排除酱油', async () => {
     G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
     const prober = G.players[1], t = G.players[2];
@@ -583,7 +814,11 @@ const scenarios = [
     await page.goto(URL);
     let r;
     try {
-      r = await page.evaluate(`(async () => { newGame(6); return await (${fn.toString()})(); })()`);
+      r = await page.evaluate(`(async () => {
+        newGame(6);
+        G.players.forEach(q => { q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; q.charRevealed = true; });
+        return await (${fn.toString()})();
+      })()`);
     } catch (e) { r = { ok: false, got: 'EXCEPTION: ' + e.message.slice(0, 120) }; }
     const status = r.ok && !errs.length ? '✓' : '✗';
     if (r.ok && !errs.length) pass++; else fail++;
