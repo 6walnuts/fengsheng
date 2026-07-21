@@ -372,7 +372,9 @@
        <b class="rule-k">密电</b>：面朝下，沿你选择的方向从邻座开始依次传递，每人可接收或传给下家。<br>
        <b class="rule-k">文本</b>：面朝上，同样依次传递。<br>
        若无人接收，情报回到传出者面前，由传出者收下。</p>
-    <p><b class="rule-k">功能牌</b>：<b>截获</b>——他人即将收下情报时，改为由你收下；<b>破译</b>——面朝下的情报传到你面前时偷看它；<b>误导</b>——把传到你面前的情报改传给你的左右邻座；<b>调包</b>——弃此牌，从手牌任选一张换入传递，原来传递中的情报收入你的手牌；<b>烧毁</b>——出牌阶段烧掉任意玩家情报区的一张黑色情报；<b>试探</b>——出牌阶段指定一名玩家，其须按真实身份执行牌上指令；<b>平信</b>——无功能，仅作情报。</p>
+    <p><b class="rule-k">回合流程</b>：摸两张牌 → <b>出牌阶段（一）</b> → 传递情报 → <b>出牌阶段（二）</b>。传递分三个窗口：<b>宣告时</b>可用【锁定】【调虎离山】【截获】；<b>到达某人面前时</b>可用【破译】【退回】【调包】；<b>决定接收时</b>不能再用任何牌。</p>
+    <p><b class="rule-k">功能牌</b>：<b>锁定</b>——指定一名玩家，其必须接收本次情报（出牌阶段一或宣告时使用，优先于调虎离山）；<b>调虎离山</b>——指定一名玩家，其不能接收本次情报；<b>退回</b>——情报到你面前时反方向继续传递；<b>截获</b>——宣告时直接拉走情报，或他人即将收下时抢走；<b>破译</b>——偷看面朝下的情报；<b>调包</b>——弃此牌，从手牌任选一张换入传递，原情报收入手牌；<b>烧毁</b>——出牌阶段烧掉任意玩家一张黑色情报；<b>试探</b>——目标按真实身份执行牌上指令；<b>平信</b>——无功能。</p>
+    <p><b class="rule-k">绝密任务</b>：任务印在角色牌上——你的身份是打酱油时，胜利条件就是你角色自带的绝密任务。</p>
     <p><b class="rule-k">拓展包《危情》</b>（可选）：牌库加入【威逼】（迫使一名玩家交给你一张手牌）、【利诱】（展示牌库顶两张，目标先选一张、你得另一张）与六张<b>双色情报</b>——双色牌同时计入两种颜色（红黑既算红也算黑！）；酱油任务池新增「双面间谍」（红蓝各集两张）。</p>
     <p><b class="rule-k">拓展包《绝密行动》</b>（可选）：强化打酱油——任务池新增「纵火狂」（累计烧毁三张黑情报）、「劫收专员」（靠【截获】收下两张情报）、「完美中立」（第六轮结束时存活且无红蓝情报）；每名酱油开局获得一条「耳目密报」，得知一名玩家的真实身份。</p>
     <p><b class="rule-k">拓展包《绝密档案》</b>（可选）：角色池加入八位新角色——报童（号外）、裁缝（量体）、车夫（快马）、灰狐（匿影）、药剂师（解毒）、守夜人（守灵）、情妇（枕风）、老会计（清账）。</p>
@@ -425,11 +427,13 @@
 
 const COLOR_NAME = { red:"红色", blue:"蓝色", black:"黑色", dual:"双色" };
 const MARK_NAME  = { zhida:"直达", midian:"密电", wenben:"文本" };
-const FN_NAME    = { jiehuo:"截获", poyi:"破译", wudao:"误导", diaobao:"调包", shaohui:"烧毁", shitan:"试探", none:"平信", weibi:"威逼", liyou:"利诱" };
+const FN_NAME    = { jiehuo:"截获", poyi:"破译", suoding:"锁定", diaohu:"调虎离山", tuihui:"退回", diaobao:"调包", shaohui:"烧毁", shitan:"试探", none:"平信", weibi:"威逼", liyou:"利诱" };
 const FN_DESC    = {
   jiehuo:"他人收下情报时，改为你收下",
   poyi:"偷看传到你面前的暗置情报",
-  wudao:"把面前的情报改传给你的邻座",
+  suoding:"指定一名玩家，其必须接收本次情报",
+  diaohu:"指定一名玩家，其不能接收本次情报",
+  tuihui:"情报到你面前时，反方向继续传递",
   diaobao:"任选一张手牌换入传递，原情报归你",
   shaohui:"烧掉任一玩家的一张黑色情报",
   shitan:"令一名玩家按真实身份行动",
@@ -464,7 +468,7 @@ const CHARS = [
   { key:"zhangsiling", name:"张司令", covert:true,  skill:"官威：你传出的情报无人接收、由你自己收下时，摸一张牌。" },
   { key:"laogui",      name:"老鬼",   covert:true,  skill:"迷踪：你收到第二张黑色情报时，可以立即弃掉它并摸一张牌（每局限一次）。" },
   { key:"heimeigui",   name:"黑玫瑰", covert:true,  skill:"夜行：你传出的黑色情报被其他玩家收下后，你摸两张牌。" },
-  { key:"emeifeng",    name:"峨嵋峰", covert:true,  skill:"太极：每回合限一次，情报传到你面前时，你可以视为使用【误导】（无需弃牌）。" },
+  { key:"emeifeng",    name:"峨嵋峰", covert:true,  skill:"太极：每回合限一次，情报传到你面前时，你可以视为使用【退回】（无需弃牌）。" },
   { key:"bashu",       name:"疤叔",   covert:true,  skill:"遗言：你死亡时，可以把情报区一张非黑色情报移交给任意一名玩家。" },
   { key:"yingzi",      name:"影子",   covert:true,  skill:"尾随：每回合限一次，你的邻座收下情报后，你摸一张牌。" },
 ];
@@ -481,19 +485,25 @@ const ARCHIVE_CHARS = [
 ];
 const CODENAMES = ["夜莺","灰鸽","青瓷","白狐","寒鸦","孤雁","竹影","老刀"];
 
-const MISSIONS = [
-  { key:"collect3", name:"情报贩子", desc:"你的情报区集齐红、蓝、黑各至少一张时，你单独获胜。" },
-  { key:"martyr",   name:"殉道者",   desc:"第三轮起，你因收到三张黑色情报死亡时，你单独获胜。" },
-  { key:"hoarder",  name:"收藏家",   desc:"你的情报区拥有至少四张情报且你存活时，你单独获胜。" },
-];
-const EXP_MISSIONS = [
-  { key:"double",   name:"双面间谍", desc:"你的情报区红色与蓝色情报各至少两张时，你单独获胜。" },
-];
-const ACTION_MISSIONS = [
-  { key:"arsonist", name:"纵火狂",   desc:"你累计烧毁三张黑色情报时，你单独获胜。" },
-  { key:"grabber",  name:"劫收专员", desc:"你通过【截获】收下的情报累计达两张时，你单独获胜。" },
-  { key:"neutral",  name:"完美中立", desc:"第六轮结束时，你存活且情报区没有任何红色或蓝色情报，你单独获胜。" },
-];
+/* 绝密任务：印在角色牌上——身份为打酱油时，胜利条件即本角色的任务 */
+const MISSION_DEFS = {
+  collect3: { key:"collect3", name:"情报贩子", desc:"你的情报区集齐红、蓝、黑各至少一张时，你单独获胜。" },
+  martyr:   { key:"martyr",   name:"殉道者",   desc:"第三轮起，你因收到三张黑色情报死亡时，你单独获胜。" },
+  hoarder:  { key:"hoarder",  name:"收藏家",   desc:"你的情报区拥有至少四张情报且你存活时，你单独获胜。" },
+  double:   { key:"double",   name:"双面间谍", desc:"你的情报区红色与蓝色情报各至少两张时，你单独获胜。" },
+  arsonist: { key:"arsonist", name:"纵火狂",   desc:"你累计烧毁三张黑色情报时，你单独获胜。" },
+  grabber:  { key:"grabber",  name:"劫收专员", desc:"你通过【截获】收下的情报累计达两张时，你单独获胜。" },
+  neutral:  { key:"neutral",  name:"完美中立", desc:"第六轮结束时，你存活且情报区没有任何红色或蓝色情报，你单独获胜。" },
+};
+const CHAR_MISSION = {
+  guxiaomeng:"double",  jinshenghuo:"arsonist", wangtianxiang:"collect3", qibai:"grabber",
+  laoqiang:"hoarder",   xiaocui:"collect3",     liningyu:"double",        laobie:"neutral",
+  baixiaonian:"martyr", wuzhiguo:"hoarder",     zhangsiling:"hoarder",    laogui:"neutral",
+  heimeigui:"martyr",   emeifeng:"neutral",     bashu:"collect3",         yingzi:"grabber",
+  baotong:"collect3",   caifeng:"hoarder",      kuaima:"grabber",         huihu:"neutral",
+  yaojishi:"arsonist",  shouyeren:"martyr",     qingfu:"double",          laokuaiji:"arsonist",
+};
+function missionOfChar(charKey){ return MISSION_DEFS[CHAR_MISSION[charKey]] || MISSION_DEFS.collect3; }
 
 function factionSetup(n){
   return {
@@ -544,7 +554,8 @@ function buildDeck(expansion){
   const push=(arr,v,k)=>{ for(let i=0;i<k;i++) arr.push(v); };
   push(colors,"red",25); push(colors,"blue",25); push(colors,"black",31);
   push(marks,"zhida",27); push(marks,"midian",27); push(marks,"wenben",27);
-  push(fns,"jiehuo",12); push(fns,"poyi",13); push(fns,"wudao",13);
+  push(fns,"jiehuo",12); push(fns,"poyi",13);
+  push(fns,"suoding",5); push(fns,"diaohu",4); push(fns,"tuihui",4);
   push(fns,"diaobao",10); push(fns,"shaohui",13); push(fns,"shitan",12); push(fns,"none",8);
   shuffle(colors); shuffle(marks); shuffle(fns);
   const probeKeys=["A","B","C","D"]; let pi=0;
@@ -583,7 +594,7 @@ function newGame(n, wantFaction, expansion){
     const k = facs.indexOf(wantFaction);            // 各人数配置下三阵营均至少 1 名
     if(k>0) [facs[0],facs[k]]=[facs[k],facs[0]];
   }
-  const missionPool = MISSIONS.concat(ex.weiqing?EXP_MISSIONS:[], ex.action?ACTION_MISSIONS:[]);
+
   const chars = shuffle((ex.archive? CHARS.concat(ARCHIVE_CHARS) : CHARS).slice()).slice(0,n);
   const codes = shuffle(CODENAMES.slice());
   const players = [];
@@ -595,7 +606,7 @@ function newGame(n, wantFaction, expansion){
       charRevealed: !chars[i].covert, // 暗置角色技能触发时才公开
       name: codes[i],                 // 座位代号（角色牌可能暗置，代号始终公开）
       faction: f,
-      mission: f==="JY" ? rnd(missionPool) : null,
+      mission: f==="JY" ? missionOfChar(chars[i].key) : null,
       hand:[], intel:[], alive:true, revealed:false,
       hint:null,          // 被试探公开暴露的身份线索："QF"/"JQ"/"JY"
       turnUsed:{},        // 每回合限用技能记录
@@ -611,6 +622,7 @@ function newGame(n, wantFaction, expansion){
     events: [],      // 公开行为记录（AI 推理与线索面板共用）
     replay: [],      // 全知复盘时间线（终局后展示）
     humanClues: [],  // 真人私有情报（破译所得等）：{targetI, text}
+    pendingLocks: [],
   };
   G.totalCards = G.deck.length;
   // 绝密行动·耳目：每名酱油开局得知一名玩家的真实身份
@@ -858,7 +870,11 @@ function cluesFor(t){
     if(e.type==="delivered" && e.fromI===t.i)
       out.push({text:`第${e.round}轮 ${e.mode==="zhida"?"直达传给":"传出情报被"} ${nm(e.toI)} ${e.mode==="zhida"?"":"收下"}——${COLOR_NAME[e.color]}`, strong:e.color==="black"});
     if(e.type==="pushedBlack" && e.actor===t.i)
-      out.push({text:`第${e.round}轮 用【误导】把黑色情报塞给了 ${nm(e.toI)}`, strong:true});
+      out.push({text:`第${e.round}轮 用【锁定】把黑色情报强塞给了 ${nm(e.toI)}`, strong:true});
+    if(e.type==="suoding" && e.actor===t.i)
+      out.push({text:`第${e.round}轮 锁定了 ${nm(e.targetI)}（强迫接收）`, strong:true});
+    if(e.type==="diaohu" && e.actor===t.i)
+      out.push({text:`第${e.round}轮 对 ${nm(e.targetI)} 使用调虎离山${e.denial?"（拦下其制胜情报！）":""}`, strong:!!e.denial});
     if(e.type==="burn" && e.actor===t.i)
       out.push({text:`第${e.round}轮 烧毁了${e.actor===e.targetI?"自己":" "+nm(e.targetI)+" "}的黑色情报`});
     if(e.type==="intercept" && e.actor===t.i)
@@ -946,6 +962,10 @@ function beliefQF(target){ // 越大越像潜伏，越小越像军情（仅使�
   // 截获过的明置情报同理（抢红→像潜伏）；但“拒胜拦截”方向相反且信号极强：
   // 拦下别人制胜的第三张红，几乎不可能是潜伏（真潜伏放行即团队获胜）
   for(const e of G.events){
+    if(e.type==="diaohu" && e.actor===target.i && e.denial){
+      // 拒胜性调虎：拦下将胜者，与拒胜拦截同理
+      s += 0; // 颜色在事件里未存，方向性通过下方 intercept 逻辑近似（保守不加权）
+    }
     if(e.type==="intercept" && e.actor===target.i && e.color){
       if(e.denial){
         if(e.color==="red") s-=5;
@@ -972,6 +992,7 @@ function hostility(a, b){
     }
     if(e.type==="pushedBlack" && e.actor===a.i && e.toI===b.i) h+=1.5;
     if(e.type==="burn" && e.actor===a.i && e.targetI===b.i && a.i!==b.i) h-=2;
+    if(e.type==="suoding" && e.actor===a.i && e.targetI===b.i) h+=2;
     if(e.type==="weibi" && e.actor===a.i && e.targetI===b.i) h+=1;
     if(e.type==="liyou" && e.actor===a.i && e.targetI===b.i) h-=1;
   }
@@ -1087,29 +1108,36 @@ async function doTurn(p){
   await sleep(400);
   if(G.over) return;
 
-  // 出牌阶段
-  setPhase(`${p.name} 的回合`,"出牌阶段");
-  await playPhase(p);
+  // 出牌阶段（一）
+  setPhase(`${p.name} 的回合`,"出牌阶段（一）");
+  await playPhase(p, 1);
   if(G.over || !p.alive) return;
 
   // 传递情报
   setPhase(`${p.name} 的回合`,"传递情报");
   await sendPhase(p);
+  if(G.over || !p.alive) return;
+
+  // 出牌阶段（二）：传完情报还可以再出牌
+  setPhase(`${p.name} 的回合`,"出牌阶段（二）");
+  await playPhase(p, 2);
 }
 
 /* ---------- 出牌阶段 ---------- */
 function anyBlackIntelOnTable(){ return G.players.some(q=>q.alive && countColor(q,"black")>0); }
 
-async function playPhase(p){
+async function playPhase(p, phaseNo){
   let guard=0;
+  const reserve = phaseNo===2? 0 : 1;   // 阶段一需给传情报留一张手牌
   while(!G.over && p.alive && guard++<12){
     const usableCards = p.hand.filter(c=>
       (c.fn==="shaohui" && anyBlackIntelOnTable()) || c.fn==="shitan"
+      || (c.fn==="suoding" && phaseNo===1 && alivePlayers().length>1)   // 锁定预置于本回合传递
       || (c.fn==="weibi" && alivePlayers().some(q=>q!==p && q.hand.length>0))
       || (c.fn==="liyou" && alivePlayers().length>1)
     );
     const canSkill = p.char.key==="jinshenghuo" && !p.turnUsed.jsh && anyBlackIntelOnTable() && p.hand.length>=2;
-    const canPlay = p.hand.length>1 && usableCards.length>0;
+    const canPlay = p.hand.length>reserve && usableCards.length>0;
     if(!canPlay && !canSkill) break;
 
     if(p.human){
@@ -1117,14 +1145,15 @@ async function playPhase(p){
       if(canPlay) opts.push({label:"使用功能牌（点选手牌）",value:"card"});
       if(canSkill) opts.push({label:"技能·火攻（弃一张牌当烧毁）",value:"skill"});
       opts.push({label:"结束出牌阶段",value:"end"});
-      const act = await ask("出牌阶段：", opts,
-        canPlay?`可用：烧毁 / 试探${G.expansion?" / 威逼 / 利诱":""}。传情报的牌要留好，手牌至少保留一张。`:"");
+      const act = await ask(`出牌阶段（${phaseNo===2?"二":"一"}）：`, opts,
+        canPlay?`可用：烧毁 / 试探${phaseNo===1?" / 锁定":""}${G.expansion?" / 威逼 / 利诱":""}。${phaseNo===1?"传情报的牌要留好，手牌至少保留一张。":""}`:"");
       if(act==="end") break;
       if(act==="card"){
         const chosen = await pickHandCardCancellable(c=>usableCards.includes(c),
           "点选一张功能牌使用…");
         if(!chosen) continue;
         if(chosen.fn==="shaohui") await resolveShaohui(p, chosen);
+        else if(chosen.fn==="suoding") await resolveSuoding(p, chosen);
         else if(chosen.fn==="weibi") await resolveWeibi(p, chosen);
         else if(chosen.fn==="liyou") await resolveLiyou(p, chosen);
         else await resolveShitan(p, chosen);
@@ -1139,14 +1168,27 @@ async function playPhase(p){
         await burnBlack(p, t);
       }
     } else {
-      const acted = await aiPlayPhaseStep(p, usableCards, canSkill);
+      const acted = await aiPlayPhaseStep(p, usableCards, canSkill, phaseNo);
       if(!acted) break;
     }
   }
   clearAsk();
 }
 
-async function aiPlayPhaseStep(p, usableCards, canSkill){
+async function aiPlayPhaseStep(p, usableCards, canSkill, phaseNo){
+  // 0) 锁定+黑牌组合：先锁定濒死敌人，随后直达黑牌完成击杀
+  if(phaseNo===1){
+    const sd = usableCards.some(c=>c.fn==="suoding")? aiPickFnCard(p,"suoding"):null;
+    const blackZhida = p.hand.find(c=>cardHasColor(c,"black") && c!==sd);
+    if(sd && blackZhida && p.hand.length>2){
+      const kill = alivePlayers().filter(q=>q!==p && aiIsLikelyEnemy(p,q) && countColor(q,"black")>=1)
+        .sort((a,b)=>countColor(b,"black")-countColor(a,"black"))[0];
+      if(kill && countColor(kill,"black")>=2 && Math.random()<0.8){
+        await resolveSuoding(p, sd, kill);
+        return true;
+      }
+    }
+  }
   // 1) 优先烧自己的黑情报（殉道者除外）
   const martyr = p.faction==="JY" && p.mission.key==="martyr";
   const shao = usableCards.some(c=>c.fn==="shaohui") ? aiPickFnCard(p,"shaohui") : null;
@@ -1201,6 +1243,26 @@ async function aiPlayPhaseStep(p, usableCards, canSkill){
     if(t){ await resolveLiyou(p, ly, t); return true; }
   }
   return false;
+}
+
+/* 锁定（出牌阶段一）：预置本回合传递的强制接收 */
+async function resolveSuoding(p, card, presetTarget){
+  const cands=alivePlayers().filter(q=>q!==p);
+  if(!cands.length) return;
+  let t=presetTarget;
+  if(!t){
+    const opts=cands.map(q=>({label:`${q.name}（黑×${countColor(q,"black")}）`,value:q}));
+    opts.push({label:"↩ 取消",value:null,warn:true});
+    t=await ask("使用【锁定】：本回合你传出的情报到谁面前时，其必须接收？",opts);
+    if(!t) return;
+  }
+  discardFromHand(p,card);
+  G.pendingLocks = G.pendingLocks||[];
+  G.pendingLocks.push(t.i);
+  log(`${pname(p)} 使用【锁定】——${pname(t)} 本回合传递中必须接收情报！`,"warn");
+  evt({type:"suoding", actor:p.i, targetI:t.i});
+  rep(`${p.name} 锁定 ${t.name}`,"warn");
+  await sleep(400);
 }
 
 /* ---------- 拓展功能牌：威逼 / 利诱 ---------- */
@@ -1449,6 +1511,17 @@ function aiPlanSend(p){
   const owns   = oc? p.hand.filter(c=>cardHasColor(c,oc) && !cardHasColor(c,"black")):[];
   const offs   = p.hand.filter(c=>!cardHasColor(c,"black") && (!oc||!cardHasColor(c,oc)));
 
+  // 已锁定目标：优先把黑牌砸过去（锁定强制接收）
+  if(G.pendingLocks && G.pendingLocks.length && blacks.length){
+    const lockedT = G.players[G.pendingLocks[0]];
+    if(lockedT.alive){
+      const zh = blacks.find(c=>c.mark==="zhida") || blacks[0];
+      if(zh.mark==="zhida") return {card:zh, param:{target:lockedT}};
+      // 非直达：朝锁定目标的方向传
+      const cwDist=(lockedT.i-p.i+G.n)%G.n, ccwDist=(p.i-lockedT.i+G.n)%G.n;
+      return {card:zh, param:{dir: cwDist<=ccwDist? "cw":"ccw"}};
+    }
+  }
   // 黑牌优先直达丢给快死的敌人（保留随机性，避免行为模式被一眼读穿）
   if(blacks.length){
     const zhBlack = blacks.find(c=>c.mark==="zhida");
@@ -1494,11 +1567,24 @@ async function runTransit(sender, card, mode, param){
     dir: param.dir||null,
     faceUp: mode==="wenben",
     pos: sender.i,
+    targetI: param.target? param.target.i : null,
     knownTo: new Set([sender.i]),
-    redirects: 0,
+    locked: new Set(),   // 锁定：必须接收
+    banned: new Set(),   // 调虎离山：不能接收
+    offers: 0,
     tamperedBy: null,
   };
   const tr=G.transit;
+  // 出牌阶段一预置的锁定在此生效
+  if(G.pendingLocks && G.pendingLocks.length){
+    for(const ti of G.pendingLocks){
+      if(G.players[ti].alive){
+        tr.locked.add(ti);
+        log(`${pname(G.players[ti])} 处于【锁定】状态——本次情报到其面前时必须接收！`,"warn");
+      }
+    }
+    G.pendingLocks=[];
+  }
   rep(`${sender.name} 传出【${MARK_NAME[mode]}】${cardColorLabel(card)}情报${mode==="zhida"?`，指定 ${param.target?param.target.name:"（无人）"}`:`，${param.dir==="cw"?"顺时针":"逆时针"}`}`, cardHasColor(card,"black")?"warn":"");
   if(mode==="zhida"){
     log(`${pname(sender)} 传出一张【直达】情报，面朝下${param.target?`交给 ${pname(param.target)}`:"——已无人可接收"}。`,"hl");
@@ -1508,26 +1594,31 @@ async function runTransit(sender, card, mode, param){
   render(); showToken(sender.i);
   await sleep(650);
 
-  let receiver=null;
-  if(mode==="zhida"){
-    if(!param.target){
-      log(`无人可以接收，情报由 ${pname(sender)} 自己收下。`);
-      receiver = sender;
-    } else {
-      const r = await offerAt(param.target, true);
-      if(r==="accept") receiver=param.target;
-      else if(r && r.redirectTo){ receiver = await continueAfterRedirect(r.redirectTo, [], true); }
-      if(!receiver){
-        log(`${pname(param.target)} 退回了情报。`);
-        receiver = G.players[tr.sender];
+  // 传递宣告窗口：任何玩家可用【锁定】【调虎离山】【截获】
+  let receiver = await announceWindow(sender);
+
+  if(!receiver){
+    if(mode==="zhida"){
+      if(!param.target){
+        log(`无人可以接收，情报由 ${pname(sender)} 自己收下。`);
+        receiver = sender;
+      } else if(tr.banned.has(param.target.i)){
+        log(`${pname(param.target)} 被调虎离山，不能接收——情报退回 ${pname(sender)}。`);
+        receiver = sender;
+      } else {
+        const r = await offerAt(param.target, true);
+        receiver = (r==="accept")? param.target : null;
+        if(!receiver){
+          log(`${pname(param.target)} 退回了情报。`);
+          receiver = G.players[tr.sender];
+        }
       }
-    }
-  } else {
-    const order = seatsFrom(sender, tr.dir);
-    receiver = await passSequence(order);
-    if(!receiver){
-      log(`无人接收，情报回到 ${pname(sender)} 面前。`);
-      receiver = sender;
+    } else {
+      receiver = await passSequence(sender);
+      if(!receiver){
+        log(`无人接收，情报回到 ${pname(sender)} 面前。`);
+        receiver = sender;
+      }
     }
   }
 
@@ -1547,25 +1638,180 @@ async function runTransit(sender, card, mode, param){
   render();
 }
 
-async function passSequence(order){
+function nextAliveFrom(i, dir){
+  for(let k=1;k<=G.n;k++){
+    const j = dir==="cw" ? (i+k)%G.n : (i-k+G.n*2)%G.n;
+    if(G.players[j].alive) return j;
+  }
+  return i;
+}
+async function passSequence(sender){
   const tr=G.transit;
-  for(const q of order){
-    if(!q.alive) continue;
+  let pos=sender.i;
+  const cap=G.n*3+4;
+  while(tr.offers++ < cap){
+    pos = nextAliveFrom(pos, tr.dir);
+    const q=G.players[pos];
+    if(q===sender) return null;               // 转回传出者 → 无人接收
+    if(tr.banned.has(q.i)){
+      log(`${pname(q)} 被调虎离山，不能接收，情报继续传递。`);
+      rep(`${q.name} 被调虎离山跳过`);
+      continue;
+    }
     const r = await offerAt(q, false);
     if(r==="accept") return q;
-    if(r && r.redirectTo){
-      const rec = await continueAfterRedirect(r.redirectTo, order, false);
-      if(rec) return rec;
+    if(r==="tuihui"){
+      tr.dir = tr.dir==="cw" ? "ccw" : "cw";
+      log(`情报调转方向，${tr.dir==="cw"?"顺时针":"逆时针"}继续传递。`,"hl");
+      continue;
     }
   }
   return null;
 }
-async function continueAfterRedirect(target, restOrder, isZhida){
-  // 误导：情报改到 target 面前；target 拒绝后继续原顺序（已跳过者不再询问）
-  const r = await offerAt(target, isZhida);
-  if(r==="accept") return target;
-  if(r && r.redirectTo) return await continueAfterRedirect(r.redirectTo, restOrder, isZhida);
+
+/* 传递宣告窗口：按座位序，各玩家可打【锁定】【调虎离山】或【截获】（截获立即拉走情报） */
+async function announceWindow(sender){
+  const tr=G.transit;
+  for(const q of seatsFrom(sender,"cw")){
+    if(!q.alive) continue;
+    if(q.human){
+      let guard=0;
+      while(guard++<4){
+        const opts=[];
+        if(q.hand.some(c=>c.fn==="suoding")) opts.push({label:"锁定（指定必收）",value:"suoding"});
+        if(q.hand.some(c=>c.fn==="diaohu")) opts.push({label:"调虎离山（指定必不收）",value:"diaohu"});
+        if(q.hand.some(c=>c.fn==="jiehuo")) opts.push({label:"截获（直接拉到你面前）",value:"jiehuo"});
+        if(!opts.length) break;
+        opts.push({label:"不响应",value:null,warn:true});
+        const known = tr.faceUp? `（${cardColorLabel(tr.card)}）` : "（面朝下）";
+        const act = await ask(`情报传递宣告${known}：是否响应？`, opts);
+        if(!act) break;
+        const played = await humanAnnouncePlay(q, act);
+        if(played==="grab") return q;
+        if(!played) continue;   // 取消回菜单
+      }
+    } else {
+      const act = aiAnnounce(q);
+      if(!act) continue;
+      if(act.type==="grab"){
+        const jc=aiPickFnCard(q,"jiehuo");
+        discardFromHand(q,jc);
+        log(`${pname(q)} 在传递中使用【截获】，情报直接落到其面前！`,"warn");
+        evt({type:"intercept", actor:q.i, color:evtColor(tr.card), victimI:null, denial:false});
+        rep(`${q.name} 传递中截获`);
+        await sleep(400);
+        return q;
+      }
+      if(act.type==="suoding"){
+        const sc=aiPickFnCard(q,"suoding");
+        discardFromHand(q,sc);
+        tr.banned.delete(act.target.i);
+        tr.locked.add(act.target.i);
+        log(`${pname(q)} 使用【锁定】——${pname(act.target)} 本次必须接收情报！`,"warn");
+        evt({type:"suoding", actor:q.i, targetI:act.target.i});
+        rep(`${q.name} 锁定 ${act.target.name}`,"warn");
+        await sleep(400);
+      }
+      if(act.type==="diaohu"){
+        const dhc=aiPickFnCard(q,"diaohu");
+        discardFromHand(q,dhc);
+        if(!tr.locked.has(act.target.i)) tr.banned.add(act.target.i);
+        log(`${pname(q)} 使用【调虎离山】——${pname(act.target)} 本次不能接收情报。`,"hl");
+        evt({type:"diaohu", actor:q.i, targetI:act.target.i,
+             denial: tr.faceUp && tr.card.color!=="black" && !tr.card.color2 && countColor(act.target,tr.card.color)>=2});
+        rep(`${q.name} 调虎离山 ${act.target.name}`);
+        await sleep(400);
+      }
+    }
+  }
   return null;
+}
+async function humanAnnouncePlay(q, act){
+  const tr=G.transit;
+  if(act==="jiehuo"){
+    const jc=await chooseFnCard(q,"jiehuo","截获");
+    if(!jc) return null;
+    discardFromHand(q,jc);
+    log(`你在传递中使用【截获】，情报直接落到你面前！`,"warn");
+    evt({type:"intercept", actor:q.i, color:evtColor(tr.card), victimI:null, denial:false});
+    rep(`${q.name} 传递中截获`);
+    return "grab";
+  }
+  const cands=alivePlayers().filter(x=>x!==q);
+  const t=await ask(act==="suoding"?"锁定谁（其必须接收本次情报）？":"调虎离山谁（其不能接收本次情报）？",
+    [...cands.map(x=>({label:x.name,value:x})), {label:"↩ 取消",value:null,warn:true}]);
+  if(!t) return null;
+  const c=await chooseFnCard(q, act, FN_NAME[act]);
+  if(!c) return null;
+  discardFromHand(q,c);
+  if(act==="suoding"){
+    tr.banned.delete(t.i); tr.locked.add(t.i);
+    log(`你使用【锁定】——${pname(t)} 本次必须接收情报！`,"warn");
+    evt({type:"suoding", actor:q.i, targetI:t.i});
+    rep(`${q.name} 锁定 ${t.name}`,"warn");
+  } else {
+    if(tr.locked.has(t.i)){ log("目标已被锁定，调虎离山无效（锁定优先）。","warn"); }
+    else tr.banned.add(t.i);
+    log(`你使用【调虎离山】——${pname(t)} 本次不能接收情报。`,"hl");
+    evt({type:"diaohu", actor:q.i, targetI:t.i,
+         denial: tr.faceUp && tr.card.color!=="black" && !tr.card.color2 && countColor(t,tr.card.color)>=2});
+    rep(`${q.name} 调虎离山 ${t.name}`);
+  }
+  return "played";
+}
+function aiAnnounce(q){
+  const tr=G.transit;
+  const known = tr.faceUp? aiColorRead(q,tr.card) : null;
+  const oc=ownColor(q);
+  // 截获：明置本方色 / 劫收专员
+  if(q.hand.some(c=>c.fn==="jiehuo")){
+    if(known && known===oc && Math.random()<0.7) return {type:"grab"};
+    if(q.faction==="JY" && q.mission.key==="grabber" && known && known!=="black" && countColor(q,"black")<2 && Math.random()<0.7) return {type:"grab"};
+  }
+  // 锁定：明置黑牌锁快死的敌人（杀招）
+  if(q.hand.some(c=>c.fn==="suoding") && known==="black"){
+    const kill=alivePlayers().filter(t=>t!==q && countColor(t,"black")>=2 && aiIsLikelyEnemy(q,t) && !tr.banned.has(t.i))
+      .sort((a,b)=>countColor(b,"black")-countColor(a,"black"))[0];
+    if(kill && Math.random()<0.85) return {type:"suoding", target:kill};
+  }
+  // 调虎离山：明置好牌拦截将胜的敌人；直达黑牌自保
+  if(q.hand.some(c=>c.fn==="diaohu")){
+    if(known && known!=="black"){
+      const danger=alivePlayers().filter(t=>t!==q && countColor(t,known)>=2 && !aiIsLikelyAlly(q,t) && !tr.locked.has(t.i))[0];
+      if(danger && Math.random()<0.8) return {type:"diaohu", target:danger};
+    }
+    if(tr.mode==="zhida" && tr.targetI===q.i && !tr.faceUp && !tr.locked.has(q.i)
+       && aiIsLikelyEnemy(q,G.players[tr.sender]) && countColor(q,"black")>=1 && Math.random()<0.6)
+      return {type:"diaohu", target:q};
+  }
+  return null;
+}
+
+/* 被锁定的 AI：可先偷看/调包，最终必须接收 */
+async function aiOfferLocked(q){
+  const tr=G.transit;
+  if(!tr.faceUp && !tr.knownTo.has(q.i)){
+    const canSkillView = q.char.key==="liningyu" && !q.turnUsed.viewSkill;
+    const pc = aiPickFnCard(q,"poyi");
+    if(canSkillView || pc){
+      if(canSkillView){ q.turnUsed.viewSkill=true; revealChar(q); log(`${pname(q)} 发动【译电】偷看了这张情报。`); }
+      else { discardFromHand(q,pc); log(`${pname(q)} 使用【破译】偷看了这张情报。`); }
+      tr.knownTo.add(q.i);
+      await sleep(300);
+    }
+  }
+  // 已知是黑牌且有调包 → 换一张自己的牌硬吃
+  const kc=knownCardTo(q);
+  if(kc && cardHasColor(kc,"black")){
+    const dc=aiPickFnCard(q,"diaobao");
+    const junk=q.hand.find(c=>c!==dc && !cardHasColor(c,"black"));
+    if(dc && junk && countColor(q,"black")>=2){
+      discardFromHand(q,dc);
+      await doDiaobao(q, junk);
+    }
+  }
+  log(`${pname(q)} 被【锁定】，被迫接收情报。`,"warn");
+  return "accept";
 }
 
 /* 灰狐·匿影：拒收暗置情报摸一张（每回合一次） */
@@ -1586,6 +1832,7 @@ async function offerAt(q, isZhida){
   render(); showToken(q.i);
   setPhase("情报传递中", `情报在 ${q.name} 面前`);
   await sleep(650);
+  const isLocked = tr.locked.has(q.i);
 
   let guard=0;
   while(guard++<12){
@@ -1598,12 +1845,13 @@ async function offerAt(q, isZhida){
       if(canView && hasPoyi) opts.push({label:"破译（弃牌偷看）",value:"poyi"});
       if(canView && canSkillView) opts.push({label:"技能·译电（免费偷看）",value:"skillview"});
       if(q.hand.length>0 && q.hand.some(c=>c.fn==="diaobao")) opts.push({label:"调包（换成手牌）",value:"diaobao"});
-      if(q.hand.some(c=>c.fn==="wudao") && adjAlive(q).length) opts.push({label:"误导（改传邻座）",value:"wudao"});
-      if(q.char.key==="emeifeng" && !q.turnUsed.emf && adjAlive(q).length) opts.push({label:"技能·太极（免费误导）",value:"emf"});
-      opts.push({label:"✓ 接收这张情报",value:"accept"});
-      opts.push({label:isZhida?"退回":"传给下家",value:"pass",warn:true});
+      if(!isLocked && !isZhida && q.hand.some(c=>c.fn==="tuihui")) opts.push({label:"退回（反方向传递）",value:"tuihui"});
+      if(!isLocked && !isZhida && q.char.key==="emeifeng" && !q.turnUsed.emf) opts.push({label:"技能·太极（免费退回）",value:"emf"});
+      opts.push({label:isLocked?"✓ 接收（被锁定，必须接收）":"✓ 接收这张情报",value:"accept"});
+      if(!isLocked) opts.push({label:isZhida?"退回":"传给下家",value:"pass",warn:true});
       const info = `来自 ${G.players[tr.sender].name} 的【${MARK_NAME[tr.mode]}】情报`+
         (tr.faceUp||known? `，颜色：<b>${cardColorLabel(tr.card)}</b>` : "，面朝下（颜色未知）")+
+        (isLocked?"　<span style='color:var(--danger)'>⚠ 你被【锁定】，不能拒收/退回！</span>":"")+
         (countColor(q,"black")>=2?"　<span style='color:var(--danger)'>⚠ 你已有两张黑色情报！</span>":"");
       const act = await ask("情报传到你面前：", opts, info);
       if(act==="accept") return "accept";
@@ -1641,34 +1889,22 @@ async function offerAt(q, isZhida){
         continue;
       }
       if(act==="emf"){
-        const adj=adjAlive(q);
-        const t=await ask("太极：改传给哪位邻座？",
-          [...adj.map(a=>({label:a.name,value:a})), {label:"↩ 取消",value:null,warn:true}]);
-        if(!t) continue;
         q.turnUsed.emf=true;
         revealChar(q);
-        tr.redirects++;
-        log(`你发动【太极】，情报改传给 ${pname(t)}。`,"hl");
-        evt({type:"wudao", transitId:tr.id, actor:q.i, toI:t.i});
-        rep(`${q.name} 太极 → 改传 ${t.name}`);
-        return {redirectTo:t};
+        log(`你发动【太极】，情报反方向传递。`,"hl");
+        rep(`${q.name} 太极 → 退回`);
+        return "tuihui";
       }
-      if(act==="wudao"){
-        const wc=await chooseFnCard(q,"wudao","误导");
-        if(!wc) continue;
-        const adj=adjAlive(q);
-        const t=await ask("误导：改传给哪位邻座？",
-          [...adj.map(a=>({label:a.name,value:a})), {label:"↩ 取消",value:null,warn:true}]);
-        if(!t) continue;
-        discardFromHand(q,wc);
-        tr.redirects++;
-        log(`你使用【误导】，情报改传给 ${pname(t)}。`,"hl");
-        evt({type:"wudao", transitId:tr.id, actor:q.i, toI:t.i});
-        rep(`${q.name} 误导 → 改传 ${t.name}`);
-        return {redirectTo:t};
+      if(act==="tuihui"){
+        const tc=await chooseFnCard(q,"tuihui","退回");
+        if(!tc) continue;
+        discardFromHand(q,tc);
+        log(`你使用【退回】，情报反方向传递。`,"hl");
+        rep(`${q.name} 退回`);
+        return "tuihui";
       }
     } else {
-      const d = await aiOffer(q, isZhida);
+      const d = isLocked? await aiOfferLocked(q) : await aiOffer(q, isZhida);
       if(d==="pass"){
         if(tr.faceUp) evt({type:"declined", who:q.i, color:evtColor(tr.card)});
         rep(`${q.name} ${isZhida?"退回":"没有接收"}（${tr.faceUp?"明置":"暗置"}${tr.knownTo.has(q.i)&&!tr.faceUp?"·已偷看":""}）`);
@@ -1740,25 +1976,22 @@ async function aiOffer(q, isZhida){
       if(martyr && (G.round>=3 || myBlacks<2) && Math.random()<0.85) return "accept";
       if(collector && countColor(q,"black")===0 && myBlacks<2 && Math.random()<0.6) return "accept";
       if(hoarder && myBlacks<2 && q.intel.length>=3 && Math.random()<0.4) return "accept";
-      // 调包把黑牌塞进手里？不要。误导（或太极）塞给快死的邻座
-      const wc=aiPickFnCard(q,"wudao");
-      const canEmf=q.char.key==="emeifeng" && !q.turnUsed.emf;
-      if((wc||canEmf) && tr.redirects<2){
-        const adj=adjAlive(q).filter(a=>a.i!==tr.sender && countColor(a,"black")>=2 && aiIsLikelyEnemy(q,a));
-        if(adj.length){
+      // 黑牌甩不掉？用退回/太极调转方向（黑牌反向流转）
+      if(!isZhida){
+        const canEmf=q.char.key==="emeifeng" && !q.turnUsed.emf;
+        const tc=aiPickFnCard(q,"tuihui");
+        if((tc||canEmf) && Math.random()<0.5){
           if(canEmf){
             q.turnUsed.emf=true; revealChar(q);
-            log(`${pname(q)} 发动【太极】，情报改传给 ${pname(adj[0])}。`,"warn");
-            rep(`${q.name} 太极 → 改传 ${adj[0].name}`);
+            log(`${pname(q)} 发动【太极】，情报反方向传递。`,"warn");
+            rep(`${q.name} 太极 → 退回`);
           } else {
-            discardFromHand(q,wc);
-            log(`${pname(q)} 使用【误导】，情报改传给 ${pname(adj[0])}。`,"warn");
-            rep(`${q.name} 误导 → 改传 ${adj[0].name}`);
+            discardFromHand(q,tc);
+            log(`${pname(q)} 使用【退回】，情报反方向传递。`,"warn");
+            rep(`${q.name} 退回`);
           }
-          tr.redirects++;
-          evt({type:"wudao", transitId:tr.id, actor:q.i, toI:adj[0].i});
           await sleep(350);
-          return {redirectTo:adj[0]};
+          return "tuihui";
         }
       }
       return "pass";
@@ -1886,9 +2119,9 @@ async function gainIntel(p, card){
   if(tr){
     const fromI = tr.tamperedBy!=null ? tr.tamperedBy : tr.sender;
     if(fromI!==p.i) evt({type:"delivered", fromI, toI:p.i, color:evtColor(card), mode:tr.mode});
-    if(card.color==="black"){
+    if(cardHasColor(card,"black") && tr.locked && tr.locked.has(p.i)){
       for(const e of G.events){
-        if(e.type==="wudao" && e.transitId===tr.id && e.toI===p.i && e.actor!==p.i)
+        if(e.type==="suoding" && e.targetI===p.i && e.actor!==p.i)
           evt({type:"pushedBlack", actor:e.actor, toI:p.i});
       }
     }
@@ -1916,6 +2149,7 @@ async function gainIntel(p, card){
       }
       const bi=p.intel.indexOf(card);
       if(bi>=0){ p.intel.splice(bi,1); G.discard.push(card); }
+      p.burnCount++;
       log(`${pname(p)} 发动【解毒】，弃两张手牌销毁了这张${cardColorLabel(card)}情报。`,"good");
       rep(`${p.name} 解毒：销毁${cardColorLabel(card)}情报`);
       render();
@@ -2150,7 +2384,9 @@ function endGame(winners, text){
 const FN_TIMING = {
   jiehuo:"他人即将收下情报时（后发先至，可连环）",
   poyi:"暗置情报传到你面前时",
-  wudao:"情报传到你面前时",
+  suoding:"出牌阶段一 / 情报传递宣告时",
+  diaohu:"情报传递宣告时",
+  tuihui:"情报传到你面前时",
   diaobao:"情报传到你面前、被收下之前",
   shaohui:"出牌阶段",
   shitan:"出牌阶段",
@@ -2158,13 +2394,15 @@ const FN_TIMING = {
   weibi:"出牌阶段",
   liyou:"出牌阶段",
 };
-const FN_COUNT = { jiehuo:"12", poyi:"13 +2*", wudao:"13", diaobao:"10", shaohui:"13", shitan:"12", none:"8 +2*", weibi:"6*", liyou:"6*" };
+const FN_COUNT = { jiehuo:"12", poyi:"13 +2*", suoding:"5", diaohu:"4", tuihui:"4", diaobao:"10", shaohui:"13", shitan:"12", none:"8 +2*", weibi:"6*", liyou:"6*" };
 let wikiTab = "chars";
 function charItem(c, packTag){
+  const m=missionOfChar(c.key);
   return `<div class="wiki-item"><span class="wname">${c.name}</span>`+
     `<span class="wiki-tag ${c.covert?"covert":"open"}">${c.covert?"暗置":"公开"}</span>`+
     (packTag?`<span class="wiki-tag pack">${packTag}</span>`:"")+
-    `<div class="wskill">${c.skill}</div></div>`;
+    `<div class="wskill">${c.skill}</div>`+
+    `<div class="wskill" style="color:#8a7a55">绝密任务·${m.name}：${m.desc}</div></div>`;
 }
 function wikiCharsHtml(){
   const open16 = CHARS.filter(c=>!c.covert), cov16 = CHARS.filter(c=>c.covert);
@@ -2177,7 +2415,7 @@ function wikiCharsHtml(){
     <div class="wiki-note">暗置角色开局盖伏，他人只见座位代号；技能首次触发时当众翻开并摸一张牌作补偿。每局从启用的角色池中随机分配。</div>`;
 }
 function wikiCardsHtml(){
-  const order=["jiehuo","poyi","wudao","diaobao","shaohui","shitan","none","weibi","liyou"];
+  const order=["jiehuo","poyi","suoding","diaohu","tuihui","diaobao","shaohui","shitan","none","weibi","liyou"];
   const rows=order.map(k=>`<tr><td><b style="color:var(--paper-dim)">${FN_NAME[k]}</b></td><td>${FN_COUNT[k]}</td><td>${FN_TIMING[k]}</td><td>${FN_DESC[k]}</td></tr>`).join("");
   return `<div class="wiki-sec">功 能 牌 一 览</div>
     <div style="overflow-x:auto"><table class="wiki-table">
@@ -2198,13 +2436,15 @@ function wikiMissionsHtml(){
       <tr><td><span class="badge JQ">军情处</span></td><td>任意一名军情玩家集齐三张蓝色情报，全体军情获胜</td></tr>
       <tr><td><span class="badge JY">打酱油</span></td><td>完成自己的机密任务（随机其一），单独获胜</td></tr>
     </table>
-    <div class="wiki-sec">酱 油 机 密 任 务</div>
+    <div class="wiki-sec">绝 密 任 务（印在角色牌上）</div>
     <table class="wiki-table">
-      ${MISSIONS.map(m=>mrow(m)).join("")}
-      ${EXP_MISSIONS.map(m=>mrow(m,"危情")).join("")}
-      ${ACTION_MISSIONS.map(m=>mrow(m,"绝密行动")).join("")}
+      ${Object.values(MISSION_DEFS).map(m=>{
+        const carriers=Object.keys(CHAR_MISSION).filter(k=>CHAR_MISSION[k]===m.key)
+          .map(k=>(CHARS.concat(ARCHIVE_CHARS).find(c=>c.key===k)||{}).name).filter(Boolean).join("、");
+        return `<tr><td><b style="color:var(--paper-dim)">${m.name}</b></td><td>${m.desc}<br><span style="color:#6b6558">持有角色：${carriers}</span></td></tr>`;
+      }).join("")}
     </table>
-    <div class="wiki-note">带标签的任务仅在对应拓展启用时进入任务池。《绝密行动》启用时，每名酱油开局还会获得一条「耳目密报」——得知一名随机玩家的真实身份。</div>`;
+    <div class="wiki-note">身份为打酱油时，胜利条件即你角色自带的绝密任务。《绝密行动》启用时，每名酱油开局还会获得一条「耳目密报」——得知一名随机玩家的真实身份。</div>`;
 }
 function renderWiki(){
   const tabs=[["chars","角色技能"],["cards","功能牌"],["missions","身份与任务"]];

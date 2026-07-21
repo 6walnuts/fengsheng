@@ -19,6 +19,8 @@ const scenarios = [
     const p = G.players[1];
     p.char = { key: "baixiaonian", name: "白小年", covert: true, skill: "转念" };
     p.faction = "QF"; p.mission = null;
+    // 固定他人角色为无被动触发者，排除影子/小翠/守夜人等联动干扰
+    G.players.forEach(q => { if (q !== p) q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
     const b1 = G.deck.pop(), b2 = G.deck.pop(), b3 = G.deck.pop();
     b1.color = b2.color = b3.color = "black";
     p.intel.push(b1, b2);
@@ -330,6 +332,68 @@ const scenarios = [
     // 翻开补偿1张 + 技能1张 = 2张；第二次触发被每回合限制挡住
     return { ok: q.hand.length === h + 2 && q.charRevealed && q.turnUsed.hf,
              got: { drew: q.hand.length - h, revealed: q.charRevealed } };
+  }],
+
+  ['绝密任务绑定角色：每名酱油的任务=其角色牌任务', async () => {
+    const jys = G.players.filter(p => p.faction === "JY");
+    const bound = jys.every(p => p.mission && p.mission.key === CHAR_MISSION[p.char.key]);
+    return { ok: jys.length > 0 && bound,
+             got: { jys: jys.map(p => p.char.key + ":" + (p.mission||{}).key) } };
+  }],
+
+  ['锁定：被锁定的AI即使暗置黑牌也被迫接收', async () => {
+    G.players.forEach(p => p.human = false);
+    const q = G.players[2];
+    q.intel.length = 0; q.hand = q.hand.filter(c => c.fn !== "poyi" && c.fn !== "diaobao");
+    const b = G.deck.pop(); b.color = "black"; b.color2 = undefined;
+    G.transit = { id: 95, card: b, sender: 1, mode: "midian", dir: "cw", faceUp: false,
+                  pos: q.i, knownTo: new Set([1]), locked: new Set([q.i]), banned: new Set(),
+                  offers: 0, tamperedBy: null };
+    const r = await offerAt(q, false);
+    G.transit = null;
+    return { ok: r === "accept", got: { r } };
+  }],
+
+  ['调虎离山：被禁玩家在顺传中被跳过', async () => {
+    G.players.forEach(p => p.human = false);
+    aiOffer = async () => "accept";                 // 所有人见牌就收
+    const sender = G.players[0], bannedQ = G.players[1];
+    const c = G.deck.pop();
+    G.transit = { id: 94, card: c, sender: 0, mode: "midian", dir: "cw", faceUp: false,
+                  pos: 0, knownTo: new Set([0]), locked: new Set(), banned: new Set([bannedQ.i]),
+                  offers: 0, tamperedBy: null };
+    const receiver = await passSequence(sender);
+    G.transit = null;
+    return { ok: receiver === G.players[2], got: { receiver: receiver && receiver.i } };
+  }],
+
+  ['退回：方向反转后传回传出者 → 无人接收', async () => {
+    G.players.forEach(p => p.human = false);
+    let first = true;
+    aiOffer = async () => { if (first) { first = false; return "tuihui"; } return "pass"; };
+    const sender = G.players[0];
+    const c = G.deck.pop();
+    G.transit = { id: 93, card: c, sender: 0, mode: "midian", dir: "cw", faceUp: false,
+                  pos: 0, knownTo: new Set([0]), locked: new Set(), banned: new Set(),
+                  offers: 0, tamperedBy: null };
+    const receiver = await passSequence(sender);
+    const dirNow = G.transit.dir;
+    G.transit = null;
+    return { ok: receiver === null && dirNow === "ccw", got: { receiver: receiver && receiver.i, dirNow } };
+  }],
+
+  ['锁定组合技：出牌阶段预置锁定 + 直达黑牌 → 强制收下', async () => {
+    G.players.forEach(p => p.human = false);
+    aiAnnounce = () => null; aiWantIntercept = () => false;
+    const sender = G.players[1], victim = G.players[2];
+    victim.hand = victim.hand.filter(c => c.fn !== "poyi" && c.fn !== "diaobao");
+    G.pendingLocks = [victim.i];
+    const b = G.deck.pop(); b.color = "black"; b.color2 = undefined; b.mark = "zhida"; b.fn = "none";
+    sender.hand.push(b);
+    const idx = sender.hand.indexOf(b); sender.hand.splice(idx, 1);
+    await runTransit(sender, b, "zhida", { target: victim });
+    return { ok: victim.intel.includes(b) && G.pendingLocks.length === 0 && G.transit === null,
+             got: { got: victim.intel.includes(b), locksLeft: G.pendingLocks.length } };
   }],
 ];
 
