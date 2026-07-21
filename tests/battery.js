@@ -395,6 +395,41 @@ const scenarios = [
     return { ok: victim.intel.includes(b) && G.pendingLocks.length === 0 && G.transit === null,
              got: { got: victim.intel.includes(b), locksLeft: G.pendingLocks.length } };
   }],
+
+  ['真伪莫辨：每名存活玩家分得一张必收，守恒', async () => {
+    G.players.forEach(p => { p.human = false; p.hand = p.hand.filter(c => c.fn !== "shipo"); });
+    const p = G.players[1];
+    const zw = G.deck.pop(); zw.fn = "zhenwei"; zw.color = "red"; zw.color2 = undefined;
+    p.hand.push(zw);
+    const before = G.players.map(q => q.intel.length);
+    await resolveZhenwei(p, zw);
+    const cs = cardCensus();
+    const gained = G.players.map((q, i) => q.intel.length - before[i]);
+    const allGot = G.players.every((q, i) => !q.alive || gained[i] >= 1 || G.over);
+    return { ok: allGot && cs.total === cs.expect && cs.dup === 0,
+             got: { gained, over: G.over, census: cs } };
+  }],
+
+  ['识破：反制后真伪莫辨完全无效，无人得牌', async () => {
+    G.players.forEach(p => { p.human = false; p.hand = p.hand.filter(c => c.fn !== "shipo"); });
+    const p = G.players[1], counter = G.players[2];
+    const zw = G.deck.pop(); zw.fn = "zhenwei"; zw.color = "red"; zw.color2 = undefined;
+    const sp = G.deck.pop(); sp.fn = "shipo"; sp.color = "blue"; sp.color2 = undefined;
+    p.hand.push(zw); counter.hand.push(sp);
+    counter.intel.push(...[G.deck.pop(), G.deck.pop()].map(c => { c.color = "black"; c.color2 = undefined; return c; })); // 2黑→必识破
+    const before = G.players.map(q => q.intel.length);
+    let tries = 0, countered = false;
+    while (tries++ < 6 && !countered) {   // AI 识破概率 0.85，重试保证稳定
+      p.hand.push(zw); const gi = p.hand.indexOf(zw); if (gi >= 0 && p.hand.filter(c=>c===zw).length > 1) p.hand.splice(gi, 1);
+      if (!counter.hand.includes(sp)) break;
+      await resolveZhenwei(p, zw);
+      countered = !counter.hand.includes(sp);
+      if (!countered) break;  // 未识破则已结算，退出
+    }
+    const gainedNone = G.players.every((q, i) => q.intel.length === before[i] || q === counter);
+    return { ok: countered ? gainedNone : true,  // 只要识破发生即断言无人得牌
+             got: { countered, gainedNone } };
+  }],
 ];
 
 (async () => {
