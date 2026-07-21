@@ -149,3 +149,4 @@
 - [风声桌游 - 百度百科](https://baike.baidu.com/item/%E9%A3%8E%E5%A3%B0%E6%A1%8C%E6%B8%B8/10994083)
 - [一起轰趴：风声桌游规则详解](https://www.1778youxi.com/tabletop-guide/message.html)
 - [George 玩桌游：風聲·黑名單 人物篇](https://georgeplay.blogspot.com/2016/03/2.html)（考据人物出处）
+- [George 玩桌游：風聲·黑名單 流程、功能牌篇](https://georgeplay.blogspot.com/2016/03/blog-post_21.html)（考据功能牌出处）
