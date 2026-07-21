@@ -498,6 +498,33 @@ const scenarios = [
     return { ok: G.exp.heimingdan === true && bl === 19 && du === 6,
              got: { hmd: G.exp.heimingdan, blacklistCards: bl, dual: du } };
   }],
+
+  ['烧毁选牌：烧敌人优先双色（拆进度），烧自己保双色烧纯黑', async () => {
+    G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
+    const me = G.players[1], enemy = G.players[2];
+    me.faction = "QF"; me.mission = null;
+    enemy.faction = "JQ"; enemy.revealed = true; enemy.mission = null;
+    // 敌人：纯黑 + 蓝黑（蓝黑该被烧，连带拆蓝进度）
+    const eb = G.deck.pop(), ed = G.deck.pop();
+    eb.color = "black"; eb.color2 = undefined;
+    ed.color = "blue"; ed.color2 = "black";
+    enemy.intel.push(eb, ed);
+    // 自己：纯黑 + 红黑（该烧纯黑，保红黑的红进度）
+    const mb = G.deck.pop(), md = G.deck.pop();
+    mb.color = "black"; mb.color2 = undefined;
+    md.color = "red"; md.color2 = "black";
+    me.intel.push(mb, md);
+    const pickEnemy = aiPickBurnCard(me, enemy);
+    const pickSelf = aiPickBurnCard(me, me);
+    await burnBlack(me, enemy, pickEnemy);
+    await burnBlack(me, me, pickSelf);
+    return { ok: pickEnemy === ed && pickSelf === mb
+              && !enemy.intel.includes(ed) && enemy.intel.includes(eb)
+              && !me.intel.includes(mb) && me.intel.includes(md)
+              && countColor(enemy, "blue") === 0 && countColor(me, "red") === 1,
+             got: { enemyPickDual: pickEnemy === ed, selfPickPure: pickSelf === mb,
+                    enemyBlue: countColor(enemy, "blue"), myRed: countColor(me, "red") } };
+  }],
 ];
 
 (async () => {

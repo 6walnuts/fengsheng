@@ -1305,10 +1305,12 @@ async function playPhase(p, phaseNo){
         if(!c) continue;
         const t = await chooseBurnTarget(true);
         if(!t) continue;
+        const bc = await chooseBurnCard(t, true);
+        if(!bc) continue;
         discardFromHand(p,c);
         p.turnUsed.jsh=true;
         log(`${pname(p)} 发动【火攻】，弃置一张手牌视为【烧毁】。`,"hl");
-        await burnBlack(p, t);
+        await burnBlack(p, t, bc);
       }
     } else {
       const acted = await aiPlayPhaseStep(p, usableCards, canSkill, phaseNo);
@@ -1587,10 +1589,12 @@ async function resolveLiyou(p, card, presetTarget){
 async function resolveShaohui(p, card){
   const t = await chooseBurnTarget(true);
   if(!t) return;                       // 撤回：不弃牌
+  const bc = await chooseBurnCard(t, true);
+  if(!bc) return;                      // 撤回：不弃牌
   discardFromHand(p,card);
   log(`${pname(p)} 使用【烧毁】。`,"hl");
   if(await counterWindow(p,"shaohui",{target:t})) return;
-  await burnBlack(p, t);
+  await burnBlack(p, t, bc);
 }
 async function chooseBurnTarget(cancellable){
   const targets = G.players.filter(q=>q.alive && countColor(q,"black")>0);
@@ -1599,13 +1603,35 @@ async function chooseBurnTarget(cancellable){
   if(cancellable) opts.push({label:"↩ 取消",value:null,warn:true});
   return await ask("选择烧毁谁的一张黑色情报：", opts);
 }
-async function burnBlack(actor, t){
-  let idx=t.intel.findIndex(c=>c.color==="black" && !c.color2);
-  if(idx<0) idx=t.intel.findIndex(c=>cardHasColor(c,"black"));
+function blackCardsOf(t){ return t.intel.filter(c=>cardHasColor(c,"black")); }
+/* 真人选择烧哪张（目标只有一张含黑情报时直接用） */
+async function chooseBurnCard(t, cancellable){
+  const cands=blackCardsOf(t);
+  if(cands.length<=1) return cands[0]||null;
+  const opts=cands.map(c=>({
+    label:`${cardColorLabel(c)}情报`+(c.color2?`（连带移除其${COLOR_NAME[c.color==="black"?c.color2:c.color]}进度）`:""),
+    value:c}));
+  if(cancellable) opts.push({label:"↩ 取消",value:null,warn:true});
+  return await ask(`烧毁 ${t.name} 情报区的哪张？`, opts);
+}
+/* AI 选牌：烧敌人优先双色（连带拆其颜色进度），烧自己/队友保双色烧纯黑 */
+function aiPickBurnCard(actor, t){
+  const cands=blackCardsOf(t);
+  if(!cands.length) return null;
+  const pure=cands.find(c=>!c.color2);
+  const dual=cands.find(c=>c.color2);
+  if(actor!==t && aiIsLikelyEnemy(actor,t) && dual) return dual;
+  return pure || cands[0];
+}
+async function burnBlack(actor, t, chosen){
+  const card = chosen || aiPickBurnCard(actor, t);
+  if(!card) return;
+  const idx=t.intel.indexOf(card);
   if(idx<0) return;
-  const [c]=t.intel.splice(idx,1);
+  t.intel.splice(idx,1);
+  const c=card;
   G.discard.push(c);
-  log(`${t===G.players[0]&&t.human?"你":t.name} 情报区的一张黑色情报被烧毁。`,"good");
+  log(`${t===G.players[0]&&t.human?"你":t.name} 情报区的一张${cardColorLabel(c)}情报被烧毁。`,"good");
   evt({type:"burn", actor:actor.i, targetI:t.i});
   rep(`${actor.name} 烧毁了 ${actor===t?"自己":t.name} 的黑色情报`,"good");
   actor.burnCount++;
