@@ -2050,6 +2050,8 @@ async function announceWindow(sender){
         log(`${pname(q)} 在传递中使用【截获】，情报直接落到其面前！`,"warn");
         evt({type:"intercept", actor:q.i, color:evtColor(tr.card), victimI:null, denial:false});
         rep(`${q.name} 传递中截获`);
+        sfx("sting");
+        wuzhiguoTrigger(q.i, "截获");
         await sleep(400);
         return q;
       }
@@ -2086,6 +2088,8 @@ async function humanAnnouncePlay(q, act){
     log(`你在传递中使用【截获】，情报直接落到你面前！`,"warn");
     evt({type:"intercept", actor:q.i, color:evtColor(tr.card), victimI:null, denial:false});
     rep(`${q.name} 传递中截获`);
+    sfx("sting");
+    wuzhiguoTrigger(q.i, "截获");
     return "grab";
   }
   const cands=alivePlayers().filter(x=>x!==q);
@@ -2162,6 +2166,18 @@ async function aiOfferLocked(q){
   }
   log(`${pname(q)} 被【锁定】，被迫接收情报。`,"warn");
   return "accept";
+}
+
+/* 吴志国·硬汉：传出的情报被截获/调包时摸一张（byI 为动作发起者，自己动自己的不触发） */
+function wuzhiguoTrigger(byI, cause){
+  const tr=G.transit;
+  if(!tr) return;
+  const sd=G.players[tr.sender];
+  if(sd.char.key==="wuzhiguo" && sd.alive && byI!==sd.i){
+    revealChar(sd);
+    log(`${pname(sd)} 发动【硬汉】（其传出的情报被${cause}），摸一张牌。`,"good");
+    drawCards(sd,1);
+  }
 }
 
 /* 灰狐·匿影：拒收暗置情报摸一张（每回合一次） */
@@ -2285,12 +2301,7 @@ async function doDiaobao(q, sub){
   log(`${pname(q)} 使用【调包】，将传递中的情报换成了另一张牌！`,"warn");
   evt({type:"diaobao", actor:q.i});
   rep(`${q.name} 调包：${cardColorLabel(old)} → 换成 ${cardColorLabel(sub)}`,"warn");
-  const sender=G.players[tr.sender];
-  if(sender.char.key==="wuzhiguo" && sender.alive){
-    revealChar(sender);
-    log(`${pname(sender)} 发动【硬汉】（其传出的情报被调包），摸一张牌。`,"good");
-    drawCards(sender,1);
-  }
+  wuzhiguoTrigger(q.i, "调包");
   render(); showToken(q.i);
   await sleep(450);
 }
@@ -2421,12 +2432,7 @@ async function interceptWindow(receiver){
       log(`${pname(intercepted)} 发动【神枪】，摸一张牌。`,"good");
       drawCards(intercepted,1);
     }
-    const sender=G.players[tr.sender];
-    if(sender.char.key==="wuzhiguo" && sender.alive && intercepted.i!==sender.i){
-      revealChar(sender);
-      log(`${pname(sender)} 发动【硬汉】（其传出的情报被截获），摸一张牌。`,"good");
-      drawCards(sender,1);
-    }
+    wuzhiguoTrigger(intercepted.i, "截获");
     cur=intercepted;
     render(); showToken(cur.i);
     await sleep(500);

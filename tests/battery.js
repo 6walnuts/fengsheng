@@ -525,6 +525,24 @@ const scenarios = [
              got: { enemyPickDual: pickEnemy === ed, selfPickPure: pickSelf === mb,
                     enemyBlue: countColor(enemy, "blue"), myRed: countColor(me, "red") } };
   }],
+
+  ['吴志国硬汉：宣告窗口截获也触发（翻开+1、技能+1）', async () => {
+    G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
+    const sender = G.players[1], grabber = G.players[3];
+    sender.char = { key: "wuzhiguo", name: "吴志国", covert: true, skill: "硬汉" };
+    sender.charRevealed = false;
+    grabber.hand.push((() => { const c = G.deck.pop(); c.fn = "jiehuo"; c.color = "blue"; c.color2 = undefined; return c; })());
+    aiAnnounce = q => q === grabber ? { type: "grab" } : null;
+    const sh = sender.hand.length;
+    G.transit = { id: 92, card: { id: 9400, color: "red", mark: "midian", fn: "none" }, sender: sender.i,
+                  mode: "midian", dir: "cw", faceUp: false, pos: sender.i, knownTo: new Set([sender.i]),
+                  locked: new Set(), banned: new Set(), offers: 0, tamperedBy: null };
+    G.deck.pop(); // 抵销 9400 号临时牌保守恒（本测试不校验守恒，仅防干扰）
+    const receiver = await announceWindow(sender);
+    G.transit = null;
+    return { ok: receiver === grabber && sender.hand.length === sh + 2 && sender.charRevealed,
+             got: { receiver: receiver && receiver.i, senderDrew: sender.hand.length - sh, revealed: sender.charRevealed } };
+  }],
 ];
 
 (async () => {
