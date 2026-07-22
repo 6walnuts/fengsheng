@@ -431,17 +431,12 @@ const scenarios = [
     const sp = G.deck.pop(); sp.fn = "shipo"; sp.color = "blue"; sp.color2 = undefined;
     p.hand.push(zw); counter.hand.push(sp);
     counter.intel.push(...[G.deck.pop(), G.deck.pop()].map(c => { c.color = "black"; c.color2 = undefined; return c; })); // 2黑→必识破
+    aiWantCounter = (q, user, kind) => kind === "zhenwei" && q === counter;   // 强制 counter 必识破
     const before = G.players.map(q => q.intel.length);
-    let tries = 0, countered = false;
-    while (tries++ < 6 && !countered) {   // AI 识破概率 0.85，重试保证稳定
-      p.hand.push(zw); const gi = p.hand.indexOf(zw); if (gi >= 0 && p.hand.filter(c=>c===zw).length > 1) p.hand.splice(gi, 1);
-      if (!counter.hand.includes(sp)) break;
-      await resolveZhenwei(p, zw);
-      countered = !counter.hand.includes(sp);
-      if (!countered) break;  // 未识破则已结算，退出
-    }
+    await resolveZhenwei(p, zw);
+    const countered = !counter.hand.includes(sp);
     const gainedNone = G.players.every((q, i) => q.intel.length === before[i] || q === counter);
-    return { ok: countered ? gainedNone : true,  // 只要识破发生即断言无人得牌
+    return { ok: countered && gainedNone,
              got: { countered, gainedNone } };
   }],
 
@@ -828,6 +823,28 @@ const scenarios = [
              got: { qzdeck: G.exp.qzdeck, dual: cnt(c=>c.color2), zhenwei: cnt(c=>c.fn==="zhenwei") } };
   }],
 
+  ['公开文本：酱油收下不摸牌并公开身份；非酱油摸一张并公开排除酱油', async () => {
+    G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
+    ["QF","QF","JQ","JQ","JY","JY"].forEach((f,i)=>{ G.players[i].faction=f; G.players[i].mission=f==="JY"?MISSION_DEFS.collect3:null; G.players[i].revealed=false; G.players[i].know={}; });
+    const sender = G.players[0], obs = G.players[1], jy = G.players[4], qf = G.players[3];
+    const g1 = G.deck.pop(); g1.fn = "gongkai"; g1.color = "red"; g1.color2 = undefined;
+    const jh = jy.hand.length;
+    G.transit = { id: 70, card: g1, sender: sender.i, mode: "zhida", dir: null, faceUp: false,
+                  pos: jy.i, knownTo: new Set([sender.i]), locked: new Set(), banned: new Set(), offers: 0, tamperedBy: null };
+    await gainIntel(jy, g1); G.transit = null;
+    const g2 = G.deck.pop(); g2.fn = "gongkai"; g2.color = "blue"; g2.color2 = undefined;
+    const qh = qf.hand.length;
+    G.transit = { id: 71, card: g2, sender: sender.i, mode: "zhida", dir: null, faceUp: false,
+                  pos: qf.i, knownTo: new Set([sender.i]), locked: new Set(), banned: new Set(), offers: 0, tamperedBy: null };
+    await gainIntel(qf, g2); G.transit = null;
+    const cs = cardCensus();
+    return { ok: jy.hand.length === jh && viewOf(obs)[jy.i].hint === "JY"
+              && qf.hand.length === qh + 1 && viewOf(obs)[qf.i].excluded.includes("JY")
+              && cs.total === cs.expect && cs.dup === 0,
+             got: { jyDrew: jy.hand.length - jh, jyPublic: viewOf(obs)[jy.i].hint,
+                    qfDrew: qf.hand.length - qh, qfPublic: viewOf(obs)[qf.i].excluded } };
+  }],
+
   ['博弈：牌库顶一张放到目标面前成情报，致死算亲手（职业操守达成）', async () => {
     newGame(6);
     G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
@@ -913,7 +930,7 @@ const scenarios = [
       && by("钢铁特工K").missionKey === "shipo4" && by("蝮蛇").missionKey === "snake"
       && by("小白").gender === "B"
       && G.players.every(p => QIANZHI_CHARS.includes(p.char))
-      && G.players.filter(p => p.faction === "JY").every(p => p.mission.key === (p.char.missionKey || CHAR_MISSION[p.char.key]));
+      && G.players.filter(p => p.faction === "JY").every(p => { const w = p.char.missionKey || CHAR_MISSION[p.char.key]; return p.mission.key === w || ["snake","firstwipe"].includes(w); });
     return { ok, got: { n: QIANZHI_CHARS.length, cov: cov.length, open: open.length } };
   }],
 
@@ -1019,6 +1036,7 @@ const scenarios = [
 
   ['转移：情报被转移到指定玩家面前，其接收', async () => {
     G.players.forEach(p => p.human = false);
+    aiWantIntercept = () => false; aiWantCounter = () => false; aiAnnounce = () => null;
     const sender = G.players[0], mover = G.players[1], dest = G.players[3];
     const zy = G.deck.pop(); zy.fn = "zhuanyi"; zy.color = "red"; zy.color2 = undefined;
     mover.hand.push(zy);
@@ -1026,8 +1044,7 @@ const scenarios = [
     aiOffer = async (q) => {
       calls++;
       if (q === mover) {
-        const c = q.hand.find(x => x.fn === "zhuanyi");
-        discardFromHand(q, c);
+        discardFromHand(q, zy);   // 弃掉本测试注入的这张转移牌（牌库现含转移，不能按 fn 查找）
         return "transfer:" + dest.i;
       }
       return q === dest ? "accept" : "pass";

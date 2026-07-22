@@ -443,7 +443,7 @@
 
 const COLOR_NAME = { red:"红色", blue:"蓝色", black:"黑色", dual:"双色" };
 const MARK_NAME  = { zhida:"直达", midian:"密电", wenben:"文本" };
-const FN_NAME    = { jiehuo:"截获", poyi:"破译", suoding:"锁定", diaohu:"调虎离山", tuihui:"退回", diaobao:"调包", shaohui:"烧毁", shitan:"试探", zhenwei:"真伪莫辨", shipo:"识破", none:"平信", weibi:"威逼", liyou:"利诱", zhuanyi:"转移", lijian:"离间", boyi:"博弈", quanheng:"权衡", zengyuan:"增援" };
+const FN_NAME    = { jiehuo:"截获", poyi:"破译", suoding:"锁定", diaohu:"调虎离山", tuihui:"退回", diaobao:"调包", shaohui:"烧毁", shitan:"试探", zhenwei:"真伪莫辨", shipo:"识破", none:"平信", weibi:"威逼", liyou:"利诱", zhuanyi:"转移", lijian:"离间", boyi:"博弈", quanheng:"权衡", zengyuan:"增援", gongkai:"公开文本" };
 const FN_DESC    = {
   jiehuo:"他人收下情报时，改为你收下",
   poyi:"先猜颜色再查看传到你面前的情报；猜中可公开它并摸一张牌",
@@ -461,6 +461,7 @@ const FN_DESC    = {
   boyi:"指定一名玩家，将牌库顶一张牌放到其面前成为情报（致死算亲手）",
   quanheng:"弃掉全部手牌，然后重新抽取等量的牌",
   zengyuan:"你有黑色情报时，抽「黑情报数+1」张牌",
+  gongkai:"只能作为你传出的情报；收下者按真实身份诚实行动（公开：酱油不摸、否则摸一张）",
   weibi:"迫使一名玩家交给你一张手牌",
   liyou:"展示牌库顶两张，目标与你各取一张",
 };
@@ -874,7 +875,7 @@ function buildDeck(weiqing, blacklist, qz){
     push(fns,"suoding",5); push(fns,"diaohu",4); push(fns,"zhuanyi",4);
     push(fns,"boyi",4); push(fns,"quanheng",2); push(fns,"zengyuan",2);
     push(fns,"zhenwei",3); push(fns,"shipo",4);
-    push(fns,"diaobao",8); push(fns,"shaohui",10); push(fns,"shitan",10); push(fns,"none",5);
+    push(fns,"diaobao",8); push(fns,"shaohui",10); push(fns,"shitan",10); push(fns,"none",2); push(fns,"gongkai",3);
   } else {
     // 经典模式：无黑名单功能牌与双色情报
     push(colors,"red",25); push(colors,"blue",25); push(colors,"black",31);
@@ -1377,6 +1378,19 @@ function viewOf(me){
     }
   }
   return v;
+}
+/* 公开文本：收下者按真实身份诚实行动的公开身份披露（酱油/非酱油对全场公开） */
+function publicTellFaction(t){
+  const isJY = t.faction==="JY";
+  for(const o of G.players){
+    if(o===t || t.revealed) continue;
+    if(isJY) knowSlot(o,t.i).hint = "JY";
+    else addExclusion(o, t, "JY");
+  }
+  const me=G.players[0];
+  if(me.human && me!==t && !t.revealed){
+    G.humanClues.push({targetI:t.i, text:`第${G.round}轮 公开文本：${t.name} ${isJY?"没有摸牌——是打酱油的！":"摸了一张牌——不是打酱油的"}`});
+  }
 }
 /* 记录一次排除认知；真人视角若推理闭环则提示 */
 function addExclusion(me, t, f){
@@ -4383,6 +4397,21 @@ async function gainIntel(p, card){
   render();
   await sleep(500);
 
+  // 公开文本：收下者按真实身份诚实行动（公开）——酱油不摸牌、潜伏/军情摸一张，全场据此得知酱油与否
+  if(tr && card.fn==="gongkai" && p.alive){
+    tr.faceUp=true;   // 公开
+    if(p.faction==="JY"){
+      log(`${pname(p)} 收下【公开文本】——按身份诚实行动：不摸牌。全场得知其为【打酱油】！`,"warn");
+      rep(`公开文本 → ${p.name} 未摸牌（打酱油）`,"warn");
+    } else {
+      log(`${pname(p)} 收下【公开文本】——按身份诚实行动：摸一张牌（非打酱油）。`,"hl");
+      rep(`公开文本 → ${p.name} 摸一张牌（非打酱油）`);
+      drawCards(p,1);
+    }
+    publicTellFaction(p);
+    render();
+  }
+
   // 药剂师·解毒：弃两张手牌销毁黑色情报（每局两次）
   if(cardHasColor(card,"black") && p.char.key==="yaojishi" && p.yjsUses<2 && p.hand.length>=2 && p.alive){
     let use;
@@ -5340,10 +5369,11 @@ const FN_TIMING = {
   boyi:"出牌阶段",
   quanheng:"出牌阶段",
   zengyuan:"出牌阶段",
+  gongkai:"自己回合传递情报阶段（只能作情报传出，不可回应）",
   weibi:"出牌阶段",
   liyou:"出牌阶段",
 };
-const FN_COUNT = { jiehuo:"12", poyi:"12", suoding:"5", diaohu:"4", tuihui:"4", zhenwei:"3", shipo:"3", diaobao:"10", shaohui:"12", shitan:"11", none:"5", zhuanyi:"4†", lijian:"3†", weibi:"6*", liyou:"6*" };
+const FN_COUNT = { jiehuo:"12", poyi:"12", suoding:"5", diaohu:"4", tuihui:"4", zhenwei:"3", shipo:"3", diaobao:"10", shaohui:"12", shitan:"11", none:"2", zhuanyi:"4", boyi:"4", quanheng:"2", zengyuan:"2", gongkai:"3", weibi:"6*", liyou:"6*" };
 let wikiTab = "chars";
 function charItem(c, packTag){
   const m=missionOfChar(c);
@@ -5372,7 +5402,7 @@ function wikiCharsHtml(){
     <div class="wiki-note">归档人物（早期自制 + 旧黑名单 12 人）在开始界面「人物版本」选「归档」后启用。</div>`;
 }
 function wikiCardsHtml(){
-  const order=["suoding","diaobao","jiehuo","diaohu","poyi","zhuanyi","boyi","shitan","zhenwei","quanheng","zengyuan","shaohui","shipo","none","weibi","liyou"];
+  const order=["suoding","diaobao","jiehuo","diaohu","poyi","zhuanyi","boyi","shitan","zhenwei","quanheng","zengyuan","shaohui","shipo","gongkai","none","weibi","liyou"];
   const rows=order.map(k=>`<tr><td><b style="color:var(--paper-dim)">${FN_NAME[k]}</b></td><td>${FN_COUNT[k]}</td><td>${FN_TIMING[k]}</td><td>${FN_DESC[k]}</td></tr>`).join("");
   return `<div class="wiki-sec">功 能 牌 一 览</div>
     <div style="overflow-x:auto"><table class="wiki-table">
@@ -5380,7 +5410,7 @@ function wikiCardsHtml(){
     </table></div>
     <div class="wiki-sec">牌 库 构 成</div>
     <table class="wiki-table">
-      <tr><th>黑名單 81 张</th><td>颜色：红 23 / 蓝 23 / 黑 29 / 红黑双色 3 / 蓝黑双色 3　印章：直达 27 / 密电 27 / 文本 27　功能：截获10/破译10/锁定5/调虎离山4/转移4/博弈4/权衡2/增援2/真伪莫辨3/识破4/调包8/烧毁10/试探10/平信5</td></tr>
+      <tr><th>黑名單 81 张</th><td>颜色：红 23 / 蓝 23 / 黑 29 / 红黑双色 3 / 蓝黑双色 3　印章：直达 27 / 密电 27 / 文本 27　功能：截获10/破译10/锁定5/调虎离山4/转移4/博弈4/权衡2/增援2/真伪莫辨3/识破4/调包8/烧毁10/试探10/公开文本3/平信2</td></tr>
       <tr><th>危情 +12 张*</th><td>威逼 ×6、利诱 ×6（红蓝黑各2）</td></tr>
     </table>
     <div class="wiki-note">默认为完整黑名單牌库（喬桌遊考据）：双色情报 + 14 类功能牌（含转移/博弈/权衡/增援）。带 * 的数量为《危情》拓展启用时加入。试探牌四种指令各占 1/4。收到三张黑色情报（含双色带黑）立即出局；双色情报同时凑满制胜与致死时，<b>先判死亡</b>（官方裁定）。经典简化模式关闭黑名單牌与双色。</div>`;
