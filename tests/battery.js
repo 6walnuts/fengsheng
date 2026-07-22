@@ -100,25 +100,6 @@ const scenarios = [
              got: { over: G.over, text: G.winText, alive: p.alive } };
   }],
 
-  ['调包（官方）：原情报弃入弃牌堆，调包牌面朝下换入传递', async () => {
-    G.players.forEach(p => p.human = false);
-    const q = G.players[2];
-    const black = G.deck.pop(); black.color = "black"; black.color2 = undefined;
-    const db = G.deck.pop(); db.fn = "diaobao"; db.color = "blue"; db.color2 = undefined;
-    q.hand.push(db);
-    G.transit = { id: 99, card: black, sender: 1, mode: "wenben", dir: "cw", faceUp: true,
-                  pos: q.i, knownTo: new Set([1]), locked: new Set(), banned: new Set(),
-                  offers: 0, tamperedBy: null };
-    await doDiaobao(q, db);
-    const tr = G.transit;
-    const ok = tr.card === db && tr.tamperedBy === q.i && tr.faceUp === false
-      && tr.knownTo.size === 1 && tr.knownTo.has(q.i)
-      && G.discard.includes(black) && !q.hand.includes(db);
-    G.discard.push(tr.card); G.transit = null;   // 收尾保守恒
-    return { ok, got: { card: tr.card.fn, tampered: tr.tamperedBy, faceUp: tr.faceUp,
-                        oldDiscarded: G.discard.includes(black) } };
-  }],
-
   ['牌库耗尽自动重洗弃牌堆', async () => {
     G.players.forEach(p => p.human = false);
     const p = G.players[1];
@@ -364,9 +345,12 @@ const scenarios = [
   }],
 
   ['绝密任务绑定角色：每名酱油的任务=其角色牌任务', async () => {
-    newGame(6);
+    newGame(6);   // 默认黑名單 25 人，任务挂在角色 missionKey 上
     const jys = G.players.filter(p => p.faction === "JY");
-    const bound = jys.every(p => p.mission && p.mission.key === CHAR_MISSION[p.char.key]);
+    const bound = jys.every(p => {
+      const want = p.char.missionKey || CHAR_MISSION[p.char.key];
+      return p.mission && (p.mission.key === want || ["snake","firstwipe"].includes(want)); // 后两者被测试基座中和
+    });
     return { ok: jys.length > 0 && bound,
              got: { jys: jys.map(p => p.char.key + ":" + (p.mission||{}).key) } };
   }],
@@ -505,13 +489,20 @@ const scenarios = [
              got: { total: G.totalCards, blacklistCards: bl, dual: du } };
   }],
 
-  ['默认开局：黑名单规则开启，含锁定/识破与双色', async () => {
+  ['默认开局：完整黑名單牌库（25人+博弈/权衡/增援/转移，无退回，双色6）', async () => {
     newGame(6);
     const all = [...G.deck, ...G.players.flatMap(p => p.hand)];
-    const bl = all.filter(c => ["suoding","diaohu","tuihui","zhenwei","shipo"].includes(c.fn)).length;
+    const cnt = f => all.filter(f).length;
     const du = all.filter(c => c.color2).length;
-    return { ok: G.exp.heimingdan === true && bl === 19 && du === 6,
-             got: { hmd: G.exp.heimingdan, blacklistCards: bl, dual: du } };
+    return { ok: G.exp.heimingdan === true && G.totalCards === 81 && du === 6
+              && G.players.every(p => QIANZHI_CHARS.includes(p.char))
+              && cnt(c => c.fn === "boyi") === 4 && cnt(c => c.fn === "quanheng") === 2
+              && cnt(c => c.fn === "zengyuan") === 2 && cnt(c => c.fn === "zhuanyi") === 4
+              && cnt(c => c.fn === "zhenwei") === 3 && cnt(c => c.fn === "suoding") === 5
+              && cnt(c => c.fn === "tuihui") === 0 && cnt(c => c.fn === "lijian") === 0,
+             got: { total: G.totalCards, dual: du,
+                    boyi: cnt(c=>c.fn==="boyi"), quanheng: cnt(c=>c.fn==="quanheng"),
+                    zengyuan: cnt(c=>c.fn==="zengyuan"), zhuanyi: cnt(c=>c.fn==="zhuanyi") } };
   }],
 
   ['烧毁选牌：烧敌人优先双色（拆进度），烧自己保双色烧纯黑', async () => {
@@ -561,8 +552,8 @@ const scenarios = [
 
   ['试探私密：结果只进试探者认知，旁观者与全局一无所知', async () => {
     G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
+    ["QF","QF","JQ","JQ","JY","JY"].forEach((f,i)=>{ G.players[i].faction=f; G.players[i].mission = f==="JY"?MISSION_DEFS.collect3:null; });
     const prober = G.players[1], t = G.players[2], bystander = G.players[3];
-    t.faction = "JQ";
     await probeOne(prober, { probe: "A" }, t);
     const pv = viewOf(prober)[t.i], bv = viewOf(bystander)[t.i];
     return { ok: t.hint == null && pv.excluded.includes("QF")
@@ -824,23 +815,90 @@ const scenarios = [
              got: { winners: G.winners.map(x => x.name) } };
   }],
 
-  ['千智新版牌库：81张 红24/蓝24/黑33 密47/直26/文8 含转移离间', async () => {
+  ['牌库合并：qzdeck 弃用，千智人物一律用完整黑名單牌库（双色+真伪莫辨+转移）', async () => {
     newGame(6, null, { qzdeck: true, roster: "qianzhi" });
     G.players.forEach(p => p.human = false);
     const all = [...G.deck, ...G.players.flatMap(p => p.hand)];
     const cnt = f => all.filter(f).length;
     const cs = cardCensus();
-    return { ok: G.totalCards === 81
-              && cnt(c => c.color === "red") === 24 && cnt(c => c.color === "blue") === 24
-              && cnt(c => c.color === "black") === 33 && cnt(c => c.color2) === 0
-              && cnt(c => c.fn === "zhuanyi") === 4 && cnt(c => c.fn === "lijian") === 3
-              && cnt(c => c.fn === "zhenwei") === 0
-              && cnt(c => c.mark === "midian") === 47 && cnt(c => c.mark === "zhida") === 26
-              && cnt(c => c.mark === "wenben") === 8
-              && cs.total === 81 && cs.dup === 0 && G.exp.heimingdan === true,
-             got: { total: G.totalCards,
-                    colors: [cnt(c=>c.color==="red"), cnt(c=>c.color==="blue"), cnt(c=>c.color==="black")],
-                    marks: [cnt(c=>c.mark==="midian"), cnt(c=>c.mark==="zhida"), cnt(c=>c.mark==="wenben")] } };
+    return { ok: G.totalCards === 81 && G.exp.qzdeck === false
+              && cnt(c => c.color2) === 6 && cnt(c => c.fn === "zhenwei") === 3
+              && cnt(c => c.fn === "zhuanyi") === 4 && cnt(c => c.fn === "lijian") === 0
+              && cs.total === 81 && cs.dup === 0,
+             got: { qzdeck: G.exp.qzdeck, dual: cnt(c=>c.color2), zhenwei: cnt(c=>c.fn==="zhenwei") } };
+  }],
+
+  ['博弈：牌库顶一张放到目标面前成情报，致死算亲手（职业操守达成）', async () => {
+    newGame(6);
+    G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
+    const p = G.players[1], t = G.players[2];
+    p.faction = "JY"; p.mission = MISSION_DEFS.assassin;
+    t.faction = "JQ"; t.mission = null;
+    G.deathCount = 1;
+    const b2 = [G.deck.pop(), G.deck.pop()];
+    b2.forEach(c => { c.color = "black"; c.color2 = undefined; });
+    t.intel.push(...b2);
+    const by = G.deck.pop(); by.fn = "boyi"; by.color = "red"; by.color2 = undefined; p.hand.push(by);
+    const top = G.deck[G.deck.length - 1]; top.color = "black"; top.color2 = undefined;
+    aiWantCounter = () => false;
+    const _r = Math.random; Math.random = () => 0.3;
+    await resolveBoyi(p, by, t);
+    Math.random = _r;
+    const cs = cardCensus();
+    return { ok: !t.alive && G.over && G.winners.length === 1 && G.winners[0] === p
+              && G.winText.includes("职业操守") && cs.total === cs.expect && cs.dup === 0,
+             got: { tAlive: t.alive, text: G.winText, census: cs } };
+  }],
+
+  ['权衡：弃光手牌重抽等量，守恒', async () => {
+    newGame(6);
+    G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
+    const p = G.players[1];
+    const qh = G.deck.pop(); qh.fn = "quanheng"; qh.color = "red"; qh.color2 = undefined; p.hand.push(qh);
+    aiWantCounter = () => false;
+    const before = p.hand.length;   // 含 quanheng
+    await resolveQuanheng(p, qh);
+    const cs = cardCensus();
+    // 打出 quanheng(-1) 后弃 before-1 张、重抽 before-1 张 → 手牌回到 before-1
+    return { ok: p.hand.length === before - 1 && !p.hand.includes(qh)
+              && cs.total === cs.expect && cs.dup === 0,
+             got: { hand: p.hand.length, expect: before - 1, census: cs } };
+  }],
+
+  ['增援：有黑情报时抽"黑数+1"张，守恒', async () => {
+    newGame(6);
+    G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
+    const p = G.players[1];
+    p.faction = "QF"; p.mission = null;
+    const bs = [G.deck.pop(), G.deck.pop()];
+    bs.forEach(c => { c.color = "black"; c.color2 = undefined; });
+    p.intel.push(...bs);   // 2 张黑
+    const zy = G.deck.pop(); zy.fn = "zengyuan"; zy.color = "red"; zy.color2 = undefined; p.hand.push(zy);
+    aiWantCounter = () => false;
+    const before = p.hand.length;
+    await resolveZengyuan(p, zy);
+    const cs = cardCensus();
+    // -增援牌 +3（黑2+1） = 净 +2
+    return { ok: p.hand.length === before - 1 + 3 && cs.total === cs.expect && cs.dup === 0,
+             got: { hand: p.hand.length, expect: before + 2, census: cs } };
+  }],
+
+  ['调包（官方·面朝上）：换入牌公开，原情报弃入弃牌堆，全场可见', async () => {
+    newGame(6);
+    G.players.forEach(p => p.human = false);
+    const q = G.players[2];
+    const black = G.deck.pop(); black.color = "black"; black.color2 = undefined;
+    const db = G.deck.pop(); db.fn = "diaobao"; db.color = "blue"; db.color2 = undefined;
+    q.hand.push(db);
+    G.transit = { id: 99, card: black, sender: 1, mode: "midian", dir: "cw", faceUp: false,
+                  pos: q.i, knownTo: new Set([1]), locked: new Set(), banned: new Set(),
+                  offers: 0, tamperedBy: null };
+    await doDiaobao(q, db);
+    const tr = G.transit;
+    const ok = tr.card === db && tr.faceUp === true && tr.tamperedBy === q.i
+      && G.discard.includes(black) && !q.hand.includes(db);
+    G.discard.push(tr.card); G.transit = null;
+    return { ok, got: { faceUp: tr.faceUp, oldDiscarded: G.discard.includes(black) } };
   }],
 
   ['千智人物池：维基表格25人（潜伏10+公开15），任务/明暗置对表', async () => {
@@ -949,6 +1007,7 @@ const scenarios = [
 
   ['包罗万象：第六张情报到手 → 单独获胜', async () => {
     G.players.forEach(q => { q.human = false; q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; });
+    G.deathCount = 1;   // 禁用蝮蛇·后发制人（无人死亡）的截胡
     const p = G.players[1];
     p.faction = "JY"; p.mission = MISSION_DEFS.six;
     for (let i = 0; i < 5; i++) { const c = G.deck.pop(); c.color = i % 2 ? "red" : "blue"; c.color2 = undefined; p.intel.push(c); }
@@ -1207,8 +1266,20 @@ const scenarios = [
     let r;
     try {
       r = await page.evaluate(`(async () => {
+        // 猴补丁：任何 newGame（含测试内部重开）后，中和会全局截胡的 snake/firstwipe 任务，
+        // 避免隔离单测里蝮蛇·后发制人 / 小白·明哲保身抢走胜利（各测试自设所需任务不受影响）
+        if(!window.__ngPatched){
+          window.__ngPatched = true;
+          const _ng = newGame;
+          window.newGame = function(...a){
+            _ng(...a);
+            G.players.forEach(q => { if(q.mission && (q.mission.key==="snake"||q.mission.key==="firstwipe")) q.mission = MISSION_DEFS.collect3; });
+          };
+        }
         newGame(6);
         G.players.forEach(q => { q.char = { key: "wangtianxiang", name: "王田香", covert: false, skill: "" }; q.charRevealed = true; });
+        // 钉一个确定的阵营布局，令 viewOf 计数推理与 AI 信念在各测试间可复现（测试可自行覆盖）
+        ["QF","QF","JQ","JQ","JY","JY"].forEach((f,i)=>{ G.players[i].faction=f; G.players[i].mission = f==="JY"?MISSION_DEFS.collect3:null; });
         return await (${fn.toString()})();
       })()`);
     } catch (e) { r = { ok: false, got: 'EXCEPTION: ' + e.message.slice(0, 120) }; }

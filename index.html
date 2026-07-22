@@ -443,7 +443,7 @@
 
 const COLOR_NAME = { red:"红色", blue:"蓝色", black:"黑色", dual:"双色" };
 const MARK_NAME  = { zhida:"直达", midian:"密电", wenben:"文本" };
-const FN_NAME    = { jiehuo:"截获", poyi:"破译", suoding:"锁定", diaohu:"调虎离山", tuihui:"退回", diaobao:"调包", shaohui:"烧毁", shitan:"试探", zhenwei:"真伪莫辨", shipo:"识破", none:"平信", weibi:"威逼", liyou:"利诱", zhuanyi:"转移", lijian:"离间" };
+const FN_NAME    = { jiehuo:"截获", poyi:"破译", suoding:"锁定", diaohu:"调虎离山", tuihui:"退回", diaobao:"调包", shaohui:"烧毁", shitan:"试探", zhenwei:"真伪莫辨", shipo:"识破", none:"平信", weibi:"威逼", liyou:"利诱", zhuanyi:"转移", lijian:"离间", boyi:"博弈", quanheng:"权衡", zengyuan:"增援" };
 const FN_DESC    = {
   jiehuo:"他人收下情报时，改为你收下",
   poyi:"先猜颜色再查看传到你面前的情报；猜中可公开它并摸一张牌",
@@ -458,6 +458,9 @@ const FN_DESC    = {
   none:"无功能，仅作情报",
   zhuanyi:"情报传到你面前时，将它转移到另一名玩家面前（被锁定时不可用）",
   lijian:"有玩家被【锁定】时，将锁定目标改为另一名玩家（不能改为锁定使用者）",
+  boyi:"指定一名玩家，将牌库顶一张牌放到其面前成为情报（致死算亲手）",
+  quanheng:"弃掉全部手牌，然后重新抽取等量的牌",
+  zengyuan:"你有黑色情报时，抽「黑情报数+1」张牌",
   weibi:"迫使一名玩家交给你一张手牌",
   liyou:"展示牌库顶两张，目标与你各取一张",
 };
@@ -627,9 +630,9 @@ function missionOfChar(ch){
 }
 
 function rosterPool(ex){
-  return ex && ex.roster==="legacy" ? (ex.archive? CHARS.concat(ARCHIVE_CHARS) : CHARS)
-    : ex && ex.roster==="qianzhi" ? QIANZHI_CHARS
-    : OFFICIAL_CHARS;
+  // 默认为喬桌遊考据黑名單 25 人；"归档"含早期自制 16(+档案8) 与旧黑名单 12 人
+  return ex && ex.roster==="legacy" ? CHARS.concat(OFFICIAL_CHARS, ex.archive? ARCHIVE_CHARS:[])
+    : QIANZHI_CHARS;
 }
 function factionSetup(n){
   return {
@@ -864,12 +867,14 @@ function buildDeck(weiqing, blacklist, qz){
     push(fns,"zhuanyi",4); push(fns,"lijian",3);
     push(fns,"diaobao",8); push(fns,"shaohui",10); push(fns,"shitan",10); push(fns,"none",7);
   } else if(blacklist){
+    // 完整黑名單牌库（喬桌遊考据）：双色情报 + 14 类功能牌（含转移/博弈/权衡/增援，无退回）
     push(colors,"red",23); push(colors,"blue",23); push(colors,"black",29);
-    push(colors,"red-black",3); push(colors,"blue-black",3);   // 双色情报（黑名单牌）
-    push(fns,"jiehuo",12); push(fns,"poyi",12);
-    push(fns,"suoding",5); push(fns,"diaohu",4); push(fns,"tuihui",4);
-    push(fns,"zhenwei",3); push(fns,"shipo",3);
-    push(fns,"diaobao",10); push(fns,"shaohui",12); push(fns,"shitan",11); push(fns,"none",5);
+    push(colors,"red-black",3); push(colors,"blue-black",3);   // 双色情报（红黑/蓝黑各3）
+    push(fns,"jiehuo",10); push(fns,"poyi",10);
+    push(fns,"suoding",5); push(fns,"diaohu",4); push(fns,"zhuanyi",4);
+    push(fns,"boyi",4); push(fns,"quanheng",2); push(fns,"zengyuan",2);
+    push(fns,"zhenwei",3); push(fns,"shipo",4);
+    push(fns,"diaobao",8); push(fns,"shaohui",10); push(fns,"shitan",10); push(fns,"none",5);
   } else {
     // 经典模式：无黑名单功能牌与双色情报
     push(colors,"red",25); push(colors,"blue",25); push(colors,"black",31);
@@ -907,10 +912,9 @@ let G = null;
 
 function newGame(n, wantFaction, expansion){
   const ex = (expansion && typeof expansion==="object")? {...expansion} : {weiqing:!!expansion};
-  if(ex.heimingdan===undefined) ex.heimingdan=true;   // 黑名单规则默认开启
-  if(ex.qzdeck===undefined) ex.qzdeck=false;          // 千智新版牌库
-  if(ex.qzdeck) ex.heimingdan=true;                   // 千智牌库基于黑名单规则内核
-  if(ex.roster===undefined) ex.roster="official";     // 默认使用考据人物
+  if(ex.heimingdan===undefined) ex.heimingdan=true;   // 黑名單规则默认开启（完整牌库）
+  ex.qzdeck=false;                                    // 千智无双色牌库已并入完整黑名單，弃用
+  if(ex.roster===undefined || ex.roster==="official") ex.roster="qianzhi"; // 默认喬桌遊黑名單 25 人
   const facs = shuffle(factionSetup(n).slice());
   if(wantFaction){
     const k = facs.indexOf(wantFaction);            // 各人数配置下三阵营均至少 1 名
@@ -1087,7 +1091,7 @@ function factionBadge(p, forceReveal){
 }
 function render(){
   if(!G) return;
-  const packs=[G.exp&&G.exp.qzdeck?"千智新版":G.exp&&!G.exp.heimingdan?"经典":"黑名单", G.exp&&G.exp.weiqing?"危情":null, G.exp&&G.exp.action?"绝密行动":null, G.exp&&G.exp.archive?"绝密档案":null].filter(Boolean).join("+");
+  const packs=[G.exp&&!G.exp.heimingdan?"经典":"黑名單", G.exp&&G.exp.weiqing?"危情":null, G.exp&&G.exp.action?"绝密行动":null, G.exp&&G.exp.archive?"绝密档案":null].filter(Boolean).join("+");
   $("#deckInfo").textContent = `${packs? packs+" · ":""}牌库 ${G.deck.length} · 弃牌 ${G.discard.length} · 第 ${G.round} 轮`;
   // 阵营配置：总数公开；死亡会亮身份，故按阵营灰显出局者
   let fb="";
@@ -1632,6 +1636,7 @@ async function doTurn(p){
 
 /* ---------- 出牌阶段 ---------- */
 function anyBlackIntelOnTable(){ return G.players.some(q=>q.alive && countColor(q,"black")>0); }
+function reserveFor(phaseNo){ return phaseNo===2? 0 : 1; }
 
 async function playPhase(p, phaseNo){
   let guard=0;
@@ -1644,6 +1649,9 @@ async function playPhase(p, phaseNo){
       || (c.mark==="midian" && p.char.key==="o_shashou" && p.char.qz && phaseNo===1 && alivePlayers().length>1)  // 预谋：密电当锁定
       || (cardHasColor(c,"black") && p.char.key==="qz_beleimao" && phaseNo===1 && alivePlayers().length>1)       // 换日：黑牌当锁定
       || (c.fn==="zhenwei" && G.deck.length+G.discard.length>=alivePlayers().length)
+      || (c.fn==="boyi" && G.deck.length+G.discard.length>0)
+      || (c.fn==="quanheng")
+      || (c.fn==="zengyuan" && countColor(p,"black")>=1)
       || (c.fn==="weibi" && alivePlayers().some(q=>q!==p && q.hand.length>0))
       || (c.fn==="liyou" && alivePlayers().length>1)
     );
@@ -1727,6 +1735,9 @@ async function playPhase(p, phaseNo){
           await resolveSuoding(p, chosen);
         }
         else if(chosen.fn==="zhenwei") await resolveZhenwei(p, chosen);
+        else if(chosen.fn==="boyi") await resolveBoyi(p, chosen);
+        else if(chosen.fn==="quanheng") await resolveQuanheng(p, chosen);
+        else if(chosen.fn==="zengyuan") await resolveZengyuan(p, chosen);
         else if(chosen.fn==="weibi") await resolveWeibi(p, chosen);
         else if(chosen.fn==="liyou") await resolveLiyou(p, chosen);
         else await resolveShitan(p, chosen);
@@ -1984,6 +1995,23 @@ async function aiPlayPhaseStep(p, usableCards, canSkill, phaseNo){
     const allies=alivePlayers().filter(q=>q!==p && aiIsLikelyAlly(p,q));
     const t=allies[0] || rnd(alivePlayers().filter(q=>q!==p));
     if(t){ await resolveLiyou(p, ly, t); return true; }
+  }
+  // 5) 博弈：砸给两张黑的敌人博一个黑（有击杀机会时高概率）
+  const by = usableCards.some(c=>c.fn==="boyi") ? aiPickFnCard(p,"boyi") : null;
+  if(by && p.hand.length>reserveFor(phaseNo)){
+    const kill=alivePlayers().filter(q=>q!==p && aiIsLikelyEnemy(p,q) && countColor(q,"black")>=2)[0];
+    if((kill && Math.random()<0.7) || Math.random()<0.12){ await resolveBoyi(p, by); return true; }
+  }
+  // 6) 权衡：手牌黑牌过多/难用时弃牌重抽
+  const qh = usableCards.some(c=>c.fn==="quanheng") ? aiPickFnCard(p,"quanheng") : null;
+  if(qh && p.hand.length>=3){
+    const junk=p.hand.filter(c=>cardHasColor(c,"black") || (ownColor(p)&&!cardHasColor(c,ownColor(p)))).length;
+    if(junk>=Math.ceil(p.hand.length*0.6) && Math.random()<0.5){ await resolveQuanheng(p, qh); return true; }
+  }
+  // 7) 增援：有黑情报又缺手牌时补牌
+  const zy = usableCards.some(c=>c.fn==="zengyuan") ? aiPickFnCard(p,"zengyuan") : null;
+  if(zy && countColor(p,"black")>=1 && p.hand.length<=3 && Math.random()<0.5){
+    await resolveZengyuan(p, zy); return true;
   }
   return false;
 }
@@ -2593,6 +2621,73 @@ async function resolveZhenwei(p, card){
   }
   if(pool.length) G.discard.push(...pool.splice(0));
 }
+/* 博弈：指定一名玩家，牌库顶一张牌放到其面前成为情报；致死算"亲手" */
+async function resolveBoyi(p, card){
+  if(G.deck.length+G.discard.length===0){ log("牌库已空，博弈无法使用。"); return; }
+  const cands=alivePlayers();
+  let t;
+  if(p.human){
+    t=await pickSeat(cands, "【博弈】：把牌库顶一张牌放到谁面前当情报？", "↩ 取消");
+    if(!t) return;
+  } else {
+    // AI：优先砸给两张黑的敌人（有概率翻出黑牌完成击杀），否则丢给可疑敌人
+    const kill=cands.filter(q=>q!==p && aiIsLikelyEnemy(p,q) && countColor(q,"black")>=2)
+      .sort((a,b)=>countColor(b,"black")-countColor(a,"black"))[0];
+    const en=cands.filter(q=>q!==p && aiIsLikelyEnemy(p,q));
+    t = kill || (en.length? rnd(en) : null);
+    if(!t) return;
+  }
+  discardFromHand(p,card);
+  log(`${pname(p)} 使用【博弈】，指定 ${pname(t)}。`,"hl");
+  evt({type:"boyi", actor:p.i, targetI:t.i});
+  rep(`${p.name} 博弈 → ${t.name}`);
+  if(await counterWindow(p,"boyi",{target:t})) return;
+  const c=drawTop();
+  if(!c){ log("牌库已空，博弈落空。"); return; }
+  log(`牌库顶翻出 ${colorSpanCard(c)}，放到 ${pname(t)} 面前！`, cardHasColor(c,"black")?"warn":"hl");
+  rep(`博弈 → ${t.name} 得 ${cardColorLabel(c)}情报`, cardHasColor(c,"black")?"warn":"");
+  await forceIntel(t, c, p.i);   // 致死归因于博弈使用者
+  render(); await sleep(300);
+}
+
+/* 权衡：弃掉全部手牌，重新抽取等量 */
+async function resolveQuanheng(p, card){
+  if(p.human){
+    const go=await ask("使用【权衡】：弃掉全部手牌，然后重新抽取等量的牌？",
+      [{label:"使用",value:true},{label:"↩ 取消",value:null,warn:true}]);
+    if(!go) return;
+  }
+  discardFromHand(p,card);
+  log(`${pname(p)} 使用【权衡】。`,"hl");
+  evt({type:"quanheng", actor:p.i});
+  rep(`${p.name} 权衡（弃 ${p.hand.length} 张重抽）`);
+  if(await counterWindow(p,"quanheng",{})) return;
+  const n=p.hand.length;
+  G.discard.push(...p.hand.splice(0));
+  drawCards(p,n);
+  log(`${pname(p)} 弃掉 ${n} 张手牌，重新抽了 ${n} 张。`,"good");
+  render(); await sleep(300);
+}
+
+/* 增援：你有黑色情报时，抽"黑情报数+1"张牌 */
+async function resolveZengyuan(p, card){
+  const bn=countColor(p,"black");
+  if(bn<1){ log("你没有黑色情报，增援无法使用。"); return; }
+  if(p.human){
+    const go=await ask(`使用【增援】：抽 ${bn}+1 = ${bn+1} 张牌？`,
+      [{label:"使用",value:true},{label:"↩ 取消",value:null,warn:true}]);
+    if(!go) return;
+  }
+  discardFromHand(p,card);
+  log(`${pname(p)} 使用【增援】。`,"hl");
+  evt({type:"zengyuan", actor:p.i});
+  rep(`${p.name} 增援（抽 ${bn+1} 张）`);
+  if(await counterWindow(p,"zengyuan",{})) return;
+  drawCards(p, bn+1);
+  log(`${pname(p)} 增援，抽了 ${bn+1} 张牌。`,"good");
+  render(); await sleep(300);
+}
+
 function aiZhenweiPick(q, pool){
   const oc=ownColor(q);
   const martyr=q.faction==="JY" && q.mission.key==="martyr";
@@ -3167,7 +3262,35 @@ async function runTransit(sender, card, mode, param){
   render(); showToken(sender.i);
   await sleep(650);
 
-  // 传递宣告窗口：任何玩家可用【锁定】【调虎离山】【截获】（黑名单规则）
+  // 传出者可在自己回合的传递宣告时使用【锁定】（喬桌遊：锁定可在自己回合传递阶段『阶段1』使用）
+  if((G.exp && G.exp.heimingdan) && sender.human && sender.hand.some(c=>c.fn==="suoding") && alivePlayers().length>1){
+    let guard=0;
+    while(guard++<4 && sender.hand.some(c=>c.fn==="suoding")){
+      const yes=await ask("传递宣告：使用【锁定】指定一名玩家本次必须接收情报？",
+        [{label:"锁定（指定必收）",value:true},{label:"不使用",value:false}]);
+      if(!yes) break;
+      const cands=alivePlayers().filter(x=>x!==sender);
+      const t=await pickSeat(cands, "【锁定】：谁必须接收本次情报？", "↩ 取消");
+      if(!t) continue;
+      const sc=await chooseFnCard(sender,"suoding","锁定");
+      if(!sc) continue;
+      discardFromHand(sender,sc);
+      if(await counterWindow(sender,"suoding",{target:t})){ continue; }
+      tr.banned.delete(t.i); tr.locked.add(t.i);
+      log(`${pname(sender)} 在传递宣告时使用【锁定】——${pname(t)} 本次必须接收情报！`,"warn");
+      evt({type:"suoding", actor:sender.i, targetI:t.i});
+      rep(`${sender.name} 锁定 ${t.name}`,"warn");
+      const t2=await lijianWindow(sender,t);
+      if(t2!==t){ tr.locked.delete(t.i); tr.locked.add(t2.i); }
+      await laoqiangChenzhuo(t2, "锁定");
+      await qzTargetTrigger(t2, "锁定");
+      await qibaiShensuan(sender);
+      await xiangshuiTrigger(sender);
+      render();
+    }
+  }
+
+  // 传递宣告窗口：任何玩家可用【调虎离山】【截获】【烧毁】（黑名单规则）
   let receiver = (G.exp && G.exp.heimingdan)? await announceWindow(sender) : null;
 
   if(!receiver){
@@ -3957,13 +4080,13 @@ async function doDiaobao(q, dbCard){
   const tr=G.transit;
   const old=tr.card;
   const idx=q.hand.indexOf(dbCard);
-  if(idx>=0) q.hand.splice(idx,1);   // 调包牌本身面朝下换入传递
+  if(idx>=0) q.hand.splice(idx,1);   // 调包牌本身换入传递
   G.discard.push(old);               // 原情报弃入弃牌堆（弃牌堆公开）
   tr.card=dbCard;
-  tr.faceUp=false;
-  tr.knownTo=new Set([q.i]);
+  tr.faceUp=true;                    // 官方：调包牌以面朝上方式展示，传递方法不变
+  tr.knownTo=new Set(G.players.filter(x=>x.alive).map(x=>x.i));
   tr.tamperedBy=q.i;
-  log(`${pname(q)} 使用【调包】——原情报（${colorSpanCard(old)}）被换下弃入弃牌堆，一张新牌面朝下继续传递！`,"warn");
+  log(`${pname(q)} 使用【调包】——原情报（${colorSpanCard(old)}）被换下弃入弃牌堆，换入并公开一张 ${colorSpanCard(dbCard)} 继续传递！`,"warn");
   evt({type:"diaobao", actor:q.i, color:evtColor(old)});
   rep(`${q.name} 调包：${cardColorLabel(old)} 弃掉，换入自己的${cardColorLabel(dbCard)}牌`,"warn");
   wuzhiguoTrigger(q.i, "调包");
@@ -5212,8 +5335,11 @@ const FN_TIMING = {
   zhenwei:"出牌阶段",
   shipo:"功能牌即将生效时（可连锁）",
   none:"——",
-  zhuanyi:"情报传到你面前时（千智新版牌库）",
-  lijian:"【锁定】指定目标后（千智新版牌库）",
+  zhuanyi:"情报传到你面前时",
+  lijian:"【锁定】指定目标后",
+  boyi:"出牌阶段",
+  quanheng:"出牌阶段",
+  zengyuan:"出牌阶段",
   weibi:"出牌阶段",
   liyou:"出牌阶段",
 };
@@ -5229,28 +5355,24 @@ function charItem(c, packTag){
     `<div class="wskill" style="color:#8a7a55">绝密任务·${m.name}：${m.desc}</div></div>`;
 }
 function wikiCharsHtml(){
+  const qCov = QIANZHI_CHARS.filter(c=>c.covert), qOpen = QIANZHI_CHARS.filter(c=>!c.covert);
   const oCov = OFFICIAL_CHARS.filter(c=>c.covert), oOpen = OFFICIAL_CHARS.filter(c=>!c.covert);
   const open16 = CHARS.filter(c=>!c.covert), cov16 = CHARS.filter(c=>c.covert);
-  return `<div class="wiki-sec">黑 名 单 人 物 · 暗 置（${oCov.length}）</div>
-    <div class="wiki-grid">${oCov.map(c=>charItem(c)).join("")}</div>
-    <div class="wiki-sec">黑 名 单 人 物 · 公 开（${oOpen.length}）</div>
-    <div class="wiki-grid">${oOpen.map(c=>charItem(c)).join("")}</div>
-    <div class="wiki-note">以上为《风声·黑名单》实体版考据人物（默认启用）。女性角色与【义气】【救美】【红袖招】等技能任务联动。</div>
-    <div class="wiki-sec">千 智 标 准 版 · 潜 伏（${QIANZHI_CHARS.filter(c=>c.covert).length}）</div>
-    <div class="wiki-grid">${QIANZHI_CHARS.filter(c=>c.covert).map(c=>charItem(c,"千智")).join("")}</div>
-    <div class="wiki-sec">千 智 标 准 版 · 公 开（${QIANZHI_CHARS.filter(c=>!c.covert).length}）</div>
-    <div class="wiki-grid">${QIANZHI_CHARS.filter(c=>!c.covert).map(c=>charItem(c,"千智")).join("")}</div>
-    <div class="wiki-note">千智标准版人物池按维基「新版人物」表格逐条对齐：潜伏 10 + 公开 15，技能名、明暗置、性别与机密任务均对表（部分技能维基未载效果、以近似实现并标注）。小白性别同时视为男女，与义气/救美/红袖招联动。</div>
-    <div class="wiki-sec">归 档 · 自 制 角 色 · 公 开（${open16.length}）</div>
-    <div class="wiki-grid">${open16.map(c=>charItem(c,"归档")).join("")}</div>
-    <div class="wiki-sec">归 档 · 自 制 角 色 · 暗 置（${cov16.length}）</div>
-    <div class="wiki-grid">${cov16.map(c=>charItem(c,"归档")).join("")}</div>
+  return `<div class="wiki-sec">黑 名 單 · 潜 伏（${qCov.length}）</div>
+    <div class="wiki-grid">${qCov.map(c=>charItem(c)).join("")}</div>
+    <div class="wiki-sec">黑 名 單 · 公 开（${qOpen.length}）</div>
+    <div class="wiki-grid">${qOpen.map(c=>charItem(c)).join("")}</div>
+    <div class="wiki-note">默认启用的黑名單 25 人（喬桌遊考据）。每人三层技能：●翻开技（暗置时用）、○公开技（角色公开时用）、◎限制技（每局一次、不可被回应）。小白性别同时视为男女，与风度/救美等技能任务联动。</div>
+    <div class="wiki-sec">归 档 · 旧 黑 名 单 12 人</div>
+    <div class="wiki-grid">${oCov.map(c=>charItem(c,"归档")).join("")}${oOpen.map(c=>charItem(c,"归档")).join("")}</div>
+    <div class="wiki-sec">归 档 · 自 制 角 色（${open16.length+cov16.length}）</div>
+    <div class="wiki-grid">${open16.map(c=>charItem(c,"归档")).join("")}${cov16.map(c=>charItem(c,"归档")).join("")}</div>
     <div class="wiki-sec">归 档 · 绝 密 档 案 拓 展（${ARCHIVE_CHARS.length}）</div>
     <div class="wiki-grid">${ARCHIVE_CHARS.map(c=>charItem(c,"档案")).join("")}</div>
-    <div class="wiki-note">归档角色为本作早期自拟人物，在开始界面「人物版本」选择「自制人物（归档）」后启用。暗置角色技能首次触发时当众翻开并摸一张牌作补偿。</div>`;
+    <div class="wiki-note">归档人物（早期自制 + 旧黑名单 12 人）在开始界面「人物版本」选「归档」后启用。</div>`;
 }
 function wikiCardsHtml(){
-  const order=["jiehuo","poyi","suoding","diaohu","tuihui","zhenwei","shipo","zhuanyi","lijian","diaobao","shaohui","shitan","none","weibi","liyou"];
+  const order=["suoding","diaobao","jiehuo","diaohu","poyi","zhuanyi","boyi","shitan","zhenwei","quanheng","zengyuan","shaohui","shipo","none","weibi","liyou"];
   const rows=order.map(k=>`<tr><td><b style="color:var(--paper-dim)">${FN_NAME[k]}</b></td><td>${FN_COUNT[k]}</td><td>${FN_TIMING[k]}</td><td>${FN_DESC[k]}</td></tr>`).join("");
   return `<div class="wiki-sec">功 能 牌 一 览</div>
     <div style="overflow-x:auto"><table class="wiki-table">
@@ -5258,11 +5380,10 @@ function wikiCardsHtml(){
     </table></div>
     <div class="wiki-sec">牌 库 构 成</div>
     <table class="wiki-table">
-      <tr><th>黑名单 81 张</th><td>颜色：红 23 / 蓝 23 / 黑 29 / 红黑双色 3 / 蓝黑双色 3　印章：直达 27 / 密电 27 / 文本 27</td></tr>
-      <tr><th>千智新版 81 张†</th><td>颜色：红 24 / 蓝 24 / 黑 33（无双色）　印章：密电 47 / 直达 26 / 文本 8（维基考据）；含【转移】【离间】，无真伪莫辨</td></tr>
+      <tr><th>黑名單 81 张</th><td>颜色：红 23 / 蓝 23 / 黑 29 / 红黑双色 3 / 蓝黑双色 3　印章：直达 27 / 密电 27 / 文本 27　功能：截获10/破译10/锁定5/调虎离山4/转移4/博弈4/权衡2/增援2/真伪莫辨3/识破4/调包8/烧毁10/试探10/平信5</td></tr>
       <tr><th>危情 +12 张*</th><td>威逼 ×6、利诱 ×6（红蓝黑各2）</td></tr>
     </table>
-    <div class="wiki-note">锁定/调虎离山/退回/真伪莫辨/识破与双色情报属于黑名单规则（默认开启，可在开始界面关闭）。带 * 的数量为《危情》拓展启用时加入。试探牌共四种指令（查潜伏 / 查军情 / 查酱油 / 甄别酱油）各占 1/4。收到三张黑色情报（含双色带黑）立即出局；双色情报同时凑满制胜与致死时，<b>先判死亡</b>（官方裁定）。</div>`;
+    <div class="wiki-note">默认为完整黑名單牌库（喬桌遊考据）：双色情报 + 14 类功能牌（含转移/博弈/权衡/增援）。带 * 的数量为《危情》拓展启用时加入。试探牌四种指令各占 1/4。收到三张黑色情报（含双色带黑）立即出局；双色情报同时凑满制胜与致死时，<b>先判死亡</b>（官方裁定）。经典简化模式关闭黑名單牌与双色。</div>`;
 }
 function wikiMissionsHtml(){
   const mrow=(m,tag)=>`<tr><td><b style="color:var(--paper-dim)">${m.name}</b>${tag?`<span class="wiki-tag pack">${tag}</span>`:""}</td><td>${m.desc}</td></tr>`;
@@ -5294,7 +5415,7 @@ function openWiki(){ renderWiki(); $("#wikiOverlay").classList.add("on"); }
 
 /* ---------- 入口/界面接线 ---------- */
 let chosenN = 6, chosenFaction = null;
-const chosenExp = { heimingdan:true, qzdeck:false, weiqing:false, action:false, archive:false, roster:"official" };
+const chosenExp = { heimingdan:true, qzdeck:false, weiqing:false, action:false, archive:false, roster:"qianzhi" };
 function initStart(){
   const row=$("#pcountRow");
   [4,5,6,7,8].forEach(n=>{
@@ -5305,7 +5426,7 @@ function initStart(){
     row.appendChild(b);
   });
   const rrow=$("#rosterRow");
-  [["official","黑名单人物（考据）"],["qianzhi","千智标准版人物（考据）"],["legacy","自制人物（归档）"]].forEach(([v,label])=>{
+  [["qianzhi","黑名單人物（考据·25人）"],["legacy","归档（自制+旧黑名单）"]].forEach(([v,label])=>{
     const b=document.createElement("button");
     b.textContent=label;
     if(v===chosenExp.roster) b.classList.add("sel");
@@ -5313,8 +5434,8 @@ function initStart(){
     rrow.appendChild(b);
   });
   const hrow=$("#hmdRow");
-  const deckModes=[["hmd","黑名单（推荐）"],["qz","千智新版"],["classic","经典简化"]];
-  const applyDeckMode=v=>{ chosenExp.heimingdan = v!=="classic"; chosenExp.qzdeck = v==="qz"; };
+  const deckModes=[["hmd","黑名單完整（推荐）"],["classic","经典简化"]];
+  const applyDeckMode=v=>{ chosenExp.heimingdan = v!=="classic"; chosenExp.qzdeck = false; };
   deckModes.forEach(([v,label])=>{
     const b=document.createElement("button");
     b.textContent=label;
@@ -5455,7 +5576,7 @@ if(AUTOTEST){
       $("#logBody").innerHTML="";
       $("#overOverlay").classList.remove("on");
       chosenN = 4+Math.floor(Math.random()*5);
-      const combos=[{},{heimingdan:false},{weiqing:true},{qzdeck:true,roster:"qianzhi"},{heimingdan:false,action:true,archive:true},{weiqing:true,action:true,archive:true}];
+      const combos=[{},{heimingdan:false},{weiqing:true},{roster:"legacy"},{roster:"legacy",action:true,archive:true},{weiqing:true,action:true}];
       newGame(chosenN, null, combos[g%5]);
       await runGame();
       window.__allResults.push(window.__gameResult);
