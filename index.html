@@ -5283,6 +5283,7 @@ async function killPlayer(p, killerI, reason){
 function endGame(winners, text){
   if(G.over) return;
   winners = winners.slice();
+  const soloWin = new Set();   // 个人胜（与阵营无关）：柒佰·风度带的人、酱油共胜/独赢任务等
   // 蝮蛇·后发制人：有玩家在无人死亡的对局中宣告胜利 → 宣告失败，改为蝮蛇获胜
   if(winners.length && (G.deathCount||0)===0){
     const snake=G.players.find(x=>x.alive && x.faction==="JY" && x.mission
@@ -5296,12 +5297,14 @@ function endGame(winners, text){
   // 柒佰·义气：宣布胜利时，指定一名女性角色玩家共同获胜
   const qb = winners.find(w=>w.char.key==="o_qibai" && w.alive);
   if(qb){
+    const skn = qb.char.qz? "风度" : "义气";
     const fems = G.players.filter(x=>x.alive && !winners.includes(x) && genderIs(x.char,"F"));
     if(fems.length){
       const pick = fems.find(x=>x.human) || fems.find(x=>x.faction===qb.faction) || fems[0];
       winners.push(pick);
-      text += `　柒佰发动【义气】，${pick.name} 共同获胜！`;
-      log(`${pname(qb)} 发动【义气】，带 ${pname(pick)} 共同获胜。`,"good");
+      soloWin.add(pick.i);   // 与其阵营无关的个人胜
+      text += `　柒佰发动【${skn}】，${pick.name} 个人共同获胜！`;
+      log(`${pname(qb)} 发动【${skn}】，带 ${pname(pick)} 个人共同获胜（与其阵营无关）。`,"good");
     }
   }
   // 酱油共胜任务：红袖招（女性胜者）/ 洁身自好（男性胜者且自身黑情报≤1）
@@ -5311,11 +5314,11 @@ function endGame(winners, text){
     for(const j of G.players){
       if(!j.alive || winners.includes(j) || j.faction!=="JY" || !j.mission) continue;
       if(j.mission.key==="femalewin" && hasF){
-        winners.push(j);
-        text += `　${j.name} 的「红袖招」应验，共同获胜！`;
+        winners.push(j); soloWin.add(j.i);
+        text += `　${j.name} 的「红袖招」应验，个人共同获胜！`;
       } else if(j.mission.key==="malewinclean" && hasM && countColor(j,"black")<=1){
-        winners.push(j);
-        text += `　${j.name}「洁身自好」，共同获胜！`;
+        winners.push(j); soloWin.add(j.i);
+        text += `　${j.name}「洁身自好」，个人共同获胜！`;
       }
     }
   }
@@ -5329,11 +5332,15 @@ function endGame(winners, text){
   if(!AUTOTEST && me.human) recordStats(meWin, me.faction);
   $("#overTitle").textContent = winners.length===0? "无人生还" : (me.human ? (meWin?"你赢了":"你输了") : "对局结束");
   $("#overDesc").innerHTML = text + (!AUTOTEST&&me.human? `<br><span style="font-size:11px;color:var(--text-dim)">${statsText()}</span>`:"");
+  // 阵营团队胜：某阵营(潜伏/军情)集体获胜的成员；个人胜：酱油任务达成 或 被风度/红袖招等带入
+  const teamFac = (()=>{ for(const f of ["QF","JQ"]){ const mem=G.players.filter(x=>x.faction===f); if(mem.length && mem.every(x=>winners.includes(x)) && !soloWin.has(mem[0].i)) return f; } return null; })();
   const rows = G.players.map(p=>{
     const w=winners.includes(p);
+    const solo = w && (soloWin.has(p.i) || p.faction==="JY" || p.faction!==teamFac);
+    const wtag = !w? "" : solo? '<span class="win" title="与阵营无关的个人胜利">★ 个人胜</span>' : '<span class="win">★ 胜</span>';
     return `<div class="idrow"><span>${p.name}${p.human?"（你）":""}·${p.char.name}</span>
       <span class="badge ${p.faction}">${FACTION_NAME[p.faction]}${p.faction==="JY"?"·"+p.mission.name:""}</span>
-      <span>${p.alive?"存活":"出局"}</span>${w?'<span class="win">★ 胜</span>':""}</div>`;
+      <span>${p.alive?"存活":"出局"}</span>${wtag}</div>`;
   }).join("");
   $("#overIds").innerHTML=rows;
   // 复盘时间线（终局全知视角，阵营着色）
