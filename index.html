@@ -235,6 +235,18 @@
   .overlay{position:fixed;inset:0;background:rgba(5,7,10,.72);z-index:60;display:none;
     align-items:center;justify-content:center}
   .overlay.on{display:flex}
+  .ov-card{background:var(--ink-2);border:1px solid var(--brass-dim);width:92%;padding:22px 26px;max-height:88vh;overflow-y:auto}
+  .ov-card h3{font-family:"STKaiti","KaiTi",serif;color:var(--paper);letter-spacing:.12em;font-size:20px}
+  .mp-in{width:100%;box-sizing:border-box;background:var(--ink);border:1px solid var(--brass-dim);
+    color:var(--text);padding:9px 11px;font-size:15px;margin-top:5px;letter-spacing:.05em}
+  .mp-in:focus{outline:none;border-color:var(--brass)}
+  .mp-roster{display:flex;flex-direction:column;gap:5px;margin-top:6px}
+  .mp-roster .mpr{display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--ink);
+    border:1px solid #2c3442;font-size:13px}
+  .mp-roster .mpr .seat{color:var(--brass);font-size:11px}
+  .mp-roster .mpr.host .tag{color:var(--seal);font-size:11px;margin-left:auto}
+  .mp-roster .mpr.ai{opacity:.6}
+  .mp-roster .mpr.me{border-color:var(--brass)}
   .modal{background:var(--ink-2);border:1px solid var(--brass-dim);max-width:560px;width:92%;
     max-height:84vh;overflow-y:auto;padding:22px 26px}
   .modal h2{font-family:"STKaiti","KaiTi",serif;color:var(--paper);letter-spacing:.2em;font-size:22px;margin-bottom:12px}
@@ -332,9 +344,54 @@
     <div class="pcount fpick" id="fpickRow"></div>
     <button class="btn" id="btnStart">潜 入</button>
     <button class="btn" id="btnResume" style="display:none">继 续 上 局</button>
+    <button class="btn small" id="btnMp">联机对战（自托管）</button>
     <button class="btn small" id="btnHelp0">游戏规则</button>
     <button class="btn small" id="btnWiki0">角色百科</button>
     <div id="statsLine" style="font-size:11px;color:var(--text-dim);letter-spacing:.05em"></div>
+  </div>
+</div>
+
+<!-- ======== 联机大厅 ======== -->
+<div id="mpOverlay" class="overlay">
+  <div class="ov-card" style="max-width:440px">
+    <h3 style="margin:0 0 4px">联机对战 · 自托管版</h3>
+    <p style="font-size:12px;color:var(--text-dim);line-height:1.6;margin:6px 0 14px">
+      主机运行游戏引擎、其余玩家作客户端连入（WebRTC / PeerJS）。空缺座位由 AI 补齐。<br>
+      需要能访问公共 PeerJS 服务器；此为自托管场景，在线预览版（受 CSP 限制）无法联网。</p>
+
+    <div id="mpHome">
+      <label style="font-size:12px;color:var(--brass)">你的昵称</label>
+      <input id="mpName" class="mp-in" maxlength="12" placeholder="谍报代号…" value="玩家">
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn small" id="mpCreate" style="flex:1">创建房间（主机）</button>
+        <button class="btn small" id="mpJoinToggle" style="flex:1">加入房间</button>
+      </div>
+      <div id="mpJoinBox" style="display:none;margin-top:12px">
+        <label style="font-size:12px;color:var(--brass)">房间号（4 位）</label>
+        <input id="mpCode" class="mp-in" maxlength="8" placeholder="如 A1B2" style="text-transform:uppercase">
+        <button class="btn small" id="mpJoin" style="margin-top:8px;width:100%">连接</button>
+      </div>
+    </div>
+
+    <div id="mpRoom" style="display:none">
+      <div style="text-align:center;margin:6px 0 12px">
+        <div style="font-size:12px;color:var(--text-dim)">房间号</div>
+        <div id="mpRoomCode" style="font-size:30px;letter-spacing:.3em;color:var(--seal);font-weight:700"></div>
+        <div id="mpRoomHint" style="font-size:11px;color:var(--text-dim);margin-top:4px"></div>
+      </div>
+      <label style="font-size:12px;color:var(--brass)">在座玩家</label>
+      <div id="mpRoster" class="mp-roster"></div>
+      <div id="mpHostCtl" style="display:none;margin-top:12px">
+        <label style="font-size:12px;color:var(--brass)">总人数（含 AI 补位）</label>
+        <div class="pcount" id="mpCountRow" style="margin:6px 0"></div>
+        <button class="btn small" id="mpStart" style="width:100%">开始对局</button>
+      </div>
+      <div id="mpClientWait" style="display:none;text-align:center;color:var(--text-dim);font-size:13px;margin-top:12px">
+        已入座，等待主机开始…</div>
+    </div>
+
+    <div id="mpErr" style="color:var(--seal);font-size:12px;margin-top:10px;min-height:16px"></div>
+    <button class="btn small warn" id="mpBack" style="margin-top:14px;width:100%">返回</button>
   </div>
 </div>
 
@@ -911,6 +968,360 @@ function buildDeck(weiqing, blacklist, qz){
 /* ---------- 游戏状态 ---------- */
 let G = null;
 
+/* ---------- 联机（自托管版；主机权威 + 各客户端过滤视角）---------- */
+let MY_SEAT = 0;        // 本浏览器控制的座位（单人恒 0）
+let promptSeat = 0;     // 当前正在被征询决定的座位（各 if(X.human) 分支入口设置）
+const MP = { active:false, role:"off", transport:null, seats:[], pending:{}, seq:0,
+             dropped:new Set(), roster:[], lobby:null };
+function mpActive(){ return MP.active; }
+function meSeat(){ return G? G.players[MY_SEAT] : null; }
+
+/* 完整快照（主机→客户端）：v1 不裁剪隐藏信息，靠 MY_SEAT 视角与现有渲染隐藏显示；
+   开发者工具级防作弊留待 v2。序列化牌对象为纯数据，客户端仅用于渲染，不跑引擎。 */
+function mpSnapshot(){
+  const cardsOf=arr=>arr.map(c=>({...c}));
+  const trSer = G.transit? {
+    id:G.transit.id, card:{...G.transit.card}, sender:G.transit.sender, mode:G.transit.mode,
+    dir:G.transit.dir, faceUp:G.transit.faceUp, pos:G.transit.pos, targetI:G.transit.targetI,
+    knownTo:[...G.transit.knownTo], locked:[...(G.transit.locked||[])], banned:[...(G.transit.banned||[])],
+    tamperedBy:G.transit.tamperedBy, encrypted:!!G.transit.encrypted,
+  } : null;
+  return {
+    n:G.n, exp:G.exp, turn:G.turn, round:G.round, over:G.over, winText:G.winText||"",
+    winners:(G.winners||[]).map(w=>w.i), totalCards:G.totalCards, deathCount:G.deathCount||0,
+    deckN:G.deck.length, discard:cardsOf(G.discard),
+    events:G.events, replay:G.replay, humanClues:G.humanClues, pendingLocks:G.pendingLocks||[],
+    transit:trSer,
+    phase:{ t:($("#phaseText")||{}).textContent||"", sub:($("#centerSub")||{}).textContent||"" },
+    logTail:[...document.querySelectorAll('#logBody p')].slice(-40).map(e=>({h:e.innerHTML,c:e.className})),
+    players:G.players.map(p=>({
+      i:p.i, human:p.human, name:p.name, faction:p.faction, missionKey:p.mission?p.mission.key:null,
+      charKey:p.char.key, charRevealed:p.charRevealed, hand:cardsOf(p.hand), intel:cardsOf(p.intel),
+      alive:p.alive, revealed:p.revealed, hint:p.hint, excluded:p.excluded||[],
+      know:p.know||{}, privateHint:p.privateHint, onceUsed:p.onceUsed||{},
+      burnCount:p.burnCount, grabCount:p.grabCount,
+    })),
+  };
+}
+/* 客户端：用快照重建一个只读 G 并渲染（不运行引擎） */
+function mpApplySnapshot(snap){
+  const pool=rosterPool(snap.exp);
+  const players=snap.players.map(sp=>({
+    ...sp,
+    char: pool.find(c=>c.key===sp.charKey) || ALL_CHARS().find(c=>c.key===sp.charKey) || CHARS[0],
+    mission: sp.missionKey? MISSION_DEFS[sp.missionKey] : null,
+    turnUsed:{},
+  }));
+  const tr=snap.transit;
+  G={
+    n:snap.n, players, expansion:!!(snap.exp&&snap.exp.weiqing), exp:snap.exp,
+    deck:new Array(snap.deckN).fill(0), discard:snap.discard,
+    turn:snap.turn, round:snap.round, over:snap.over, winText:snap.winText,
+    winners:(snap.winners||[]).map(i=>players[i]),
+    transit: tr? {...tr, card:tr.card, knownTo:new Set(tr.knownTo), locked:new Set(tr.locked), banned:new Set(tr.banned)} : null,
+    transitSeq:0, events:snap.events||[], replay:snap.replay||[], humanClues:snap.humanClues||[],
+    pendingLocks:snap.pendingLocks||[], totalCards:snap.totalCards, lastTurnIdx:-1, deathCount:snap.deathCount||0,
+  };
+  // 还原日志尾
+  const lb=$("#logBody"); if(lb){ lb.innerHTML=""; (snap.logTail||[]).forEach(l=>{ const el=document.createElement("p"); if(l.c) el.className=l.c; el.innerHTML=l.h; lb.appendChild(el); }); lb.scrollTop=1e9; }
+  setPhase(snap.phase.t, snap.phase.sub);
+  render();
+  if(snap.over) showOverFromSnap(snap);
+}
+function showOverFromSnap(snap){
+  // 客户端结算：用重建后的只读 G（含 winners/winText）填充与主机一致的结算面板
+  const me=G.players[MY_SEAT];
+  const meWin=G.winners.includes(me);
+  $("#overTitle").textContent = (G.winners.length===0)? "无人生还" : (meWin?"你赢了":"你输了");
+  $("#overDesc").innerHTML = G.winText||"";
+  const teamFac=(()=>{ for(const f of ["QF","JQ"]){ const mem=G.players.filter(x=>x.faction===f); if(mem.length && mem.every(x=>G.winners.includes(x))) return f; } return null; })();
+  $("#overIds").innerHTML = G.players.map(p=>{
+    const w=G.winners.includes(p);
+    const solo=w && (p.faction==="JY" || p.faction!==teamFac);
+    const wtag=!w?"":solo?'<span class="win" title="与阵营无关的个人胜利">★ 个人胜</span>':'<span class="win">★ 胜</span>';
+    return `<div class="idrow"><span>${p.name}${p.i===MY_SEAT?"（你）":""}·${p.char.name}</span>
+      <span class="badge ${p.faction}">${FACTION_NAME[p.faction]}${p.faction==="JY"&&p.mission?"·"+p.mission.name:""}</span>
+      <span>${p.alive?"存活":"出局"}</span>${wtag}</div>`;
+  }).join("");
+  const paint=s=>{ for(const q of G.players) s=s.split(q.name).join(`<span class="fn-${q.faction}">${q.name}</span>`); return s; };
+  let lastRound=0, rhtml="";
+  for(const r of (G.replay||[])){
+    if(r.round!==lastRound){ rhtml+=`<p class="rep-round">— 第 ${r.round} 轮 —</p>`; lastRound=r.round; }
+    rhtml+=`<p class="${r.cls}">${paint(r.text)}</p>`;
+  }
+  $("#replayBox").innerHTML=rhtml||"<p>本局没有记录。</p>";
+  $("#overOverlay").classList.add("on");
+}
+
+/* 广播当前状态给所有客户端（主机每次 render 后调用） */
+function mpBroadcast(){
+  if(!MP.active || MP.role!=="host") return;
+  const snap=mpSnapshot();
+  MP.transport && MP.transport.send({t:"state", snap});
+}
+
+/* ---- 提示路由：主机侧把远程座位的决定发给对应客户端并等待应答 ---- */
+function mpSafeDefault(kind, payload){
+  if(kind==="ask"){ const i=payload.options.findIndex(o=>!o.disabled); return i<0?0:i; }
+  if(kind==="seat") return payload.cands.length? payload.cands[0] : null;
+  if(kind==="hand") return payload.ids.length? payload.ids[0] : null;
+  return null;
+}
+function mpRemotePrompt(seat, kind, payload){
+  if(MP.dropped.has(seat)) return Promise.resolve(mpSafeDefault(kind,payload)); // 掉线座位自动托管
+  mpBroadcast();   // 先把最新状态推给客户端，其据此渲染提示
+  return new Promise(res=>{
+    const id=++MP.seq;
+    MP.pending[id]={res, seat, kind, payload};
+    apMsg(`等待 ${G.players[seat].name} 决策中…`);
+    MP.transport && MP.transport.send({t:"prompt", seat, kind, payload, id});
+  });
+}
+function mpIsRemoteSeat(seat){ return MP.active && MP.role==="host" && seat!==MY_SEAT && G.players[seat] && G.players[seat].human; }
+/* 主机收到某客户端应答后调用，唤醒对应 await */
+function mpResolve(id, value){ const r=MP.pending[id]; if(r){ delete MP.pending[id]; r.res(value); } }
+/* 某客户端掉线：其座位改由安全默认自动续跑，唤醒所有挂起的等待，避免主机永久卡死 */
+function mpDropSeat(seat){
+  MP.dropped.add(seat);
+  for(const id of Object.keys(MP.pending)){
+    const p=MP.pending[id];
+    if(p.seat===seat) mpResolve(+id, mpSafeDefault(p.kind, p.payload));
+  }
+  if(MP.active && G && G.players[seat]) log(`${G.players[seat].name} 掉线，其座位改由系统自动接管。`,"warn");
+}
+
+/* ---- 主机侧收消息：客户端的应答、握手与大厅 ---- */
+function mpHostOnMessage(msg, conn){
+  if(!msg) return;
+  if(msg.t==="resp"){ mpResolve(msg.id, msg.value); return; }
+  if(msg.t==="hello"){ mpHostSeatClient(conn, msg.name); return; }
+}
+
+/* ---- 客户端侧收消息：状态快照、提示、大厅事件 ---- */
+function mpClientOnMessage(msg){
+  if(!msg) return;
+  if(msg.t==="seat"){ MY_SEAT=msg.seat; MP.roster=msg.roster; mpRenderRoster(); mpShowClientWait(); return; }
+  if(msg.t==="roster"){ MP.roster=msg.roster; mpRenderRoster(); return; }
+  if(msg.t==="start"){ mpClientEnterGame(); return; }
+  if(msg.t==="state"){ if(MP.active) mpApplySnapshot(msg.snap); return; }
+  if(msg.t==="prompt"){ if(msg.seat===MY_SEAT) mpClientPrompt(msg); return; }  // 只应答本座位的提示
+}
+/* 客户端本地渲染主机下发的提示，用完全相同的交互 UI 取值后回传 */
+async function mpClientPrompt(msg){
+  const { kind, payload, id }=msg;
+  let value=null;
+  if(kind==="ask"){
+    const opts=payload.options.map((o,i)=>({label:o.label, warn:o.warn, disabled:o.disabled, value:i}));
+    value=await ask(payload.title, opts, payload.sub);
+  } else if(kind==="seat"){
+    const cands=payload.cands.map(i=>G.players[i]).filter(Boolean);
+    const p=await pickSeat(cands, payload.title, payload.cancelLabel);
+    value = p==null? null : p.i;
+  } else if(kind==="hand"){
+    const f=c=>payload.ids.includes(c.id);
+    const c = payload.cancellable? await pickHandCardCancellable(f, payload.msg||"") : await pickHandCard(f);
+    value = c==null? null : c.id;
+  }
+  MP.transport && MP.transport.send({t:"resp", id, value});
+}
+/* 统一入口：按本机角色分发（conn 仅主机侧用于识别来源） */
+function mpOnMessage(msg, conn){
+  if(MP.role==="host") mpHostOnMessage(msg, conn);
+  else if(MP.role==="client") mpClientOnMessage(msg);
+}
+
+/* ==================== 传输层：PeerJS（WebRTC）适配器 ==================== */
+/* 传输接口极薄：{ send(obj) }。主机向所有客户端广播；客户端只连主机一条。
+   核心引擎与提示路由都不依赖具体传输，便于替换为 WebSocket 等。 */
+let PEER_LIB=null;
+function loadPeerJS(){
+  if(window.Peer){ PEER_LIB=window.Peer; return Promise.resolve(PEER_LIB); }
+  if(PEER_LIB) return Promise.resolve(PEER_LIB);
+  return new Promise((res,rej)=>{
+    const s=document.createElement("script");
+    s.src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js";
+    s.onload=()=>{ PEER_LIB=window.Peer; PEER_LIB? res(PEER_LIB) : rej(new Error("PeerJS 未就绪")); };
+    s.onerror=()=>rej(new Error("无法加载 PeerJS（需联网；在线预览版受 CSP 限制无法联机）"));
+    document.head.appendChild(s);
+  });
+}
+function makeHostTransport(){
+  const conns=[];
+  return {
+    conns,
+    add(c){ conns.push(c); },
+    remove(c){ const i=conns.indexOf(c); if(i>=0) conns.splice(i,1); },
+    send(obj){ for(const c of conns){ try{ if(c.open) c.send(obj); }catch(e){} } },
+  };
+}
+function makeClientTransport(conn){
+  return { conn, send(obj){ try{ if(conn.open) conn.send(obj); }catch(e){} } };
+}
+const ROOM_ID_PREFIX="fengsheng-room-";   // PeerJS 全局命名空间里的房间前缀，降低撞号概率
+function genRoomCode(){
+  const ch="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";  // 去掉易混字符
+  let s=""; for(let i=0;i<4;i++) s+=ch[Math.floor(Math.random()*ch.length)];
+  return s;
+}
+
+/* ==================== 大厅 ==================== */
+let mpCountSel=4;
+function mpErr(t){ const e=$("#mpErr"); if(e) e.textContent=t||""; }
+function mpOpenLobby(){
+  MP.role="off"; MP.active=false; MP.dropped=new Set(); MP.pending={}; MP.roster=[];
+  $("#mpHome").style.display="";
+  $("#mpRoom").style.display="none";
+  $("#mpJoinBox").style.display="none";
+  mpErr("");
+  $("#mpOverlay").classList.add("on");
+}
+function mpCloseLobby(){
+  try{ if(MP.lobby && MP.lobby.peer) MP.lobby.peer.destroy(); }catch(e){}
+  MP.lobby=null; MP.role="off"; MP.active=false;
+  $("#mpOverlay").classList.remove("on");
+}
+function mpRosterView(){ return MP.roster.map(r=>({name:r.name, kind:r.kind})); }
+function mpRenderRoster(){
+  const box=$("#mpRoster"); if(!box) return;
+  box.innerHTML="";
+  MP.roster.forEach((r,i)=>{
+    const d=document.createElement("div");
+    d.className="mpr"+(r.kind==="host"?" host":"")+(r.kind==="ai"?" ai":"")+(i===MY_SEAT&&MP.role==="client"?" me":"")+(i===0&&MP.role==="host"?" me":"");
+    const who = r.kind==="ai"? "（AI 补位）" : r.name;
+    d.innerHTML=`<span class="seat">座位 ${i+1}</span><span>${who}</span>`+
+      (r.kind==="host"?`<span class="tag">主机</span>`:"");
+    box.appendChild(d);
+  });
+}
+/* 主机：新客户端握手，分配下一个空位（非 AI-only 座位从 1 开始） */
+function mpHostSeatClient(conn, name){
+  let seat=-1;
+  for(let i=1;i<MP.roster.length;i++){ if(MP.roster[i].kind==="ai"){ seat=i; break; } }
+  if(seat<0){ try{ conn.send({t:"full"}); conn.close(); }catch(e){} return; }  // 满员
+  MP.roster[seat]={ name:(name||"玩家").slice(0,12), kind:"client", conn };
+  conn.__seat=seat;
+  try{ conn.send({t:"seat", seat, roster:mpRosterView()}); }catch(e){}
+  MP.transport.send({t:"roster", roster:mpRosterView()});   // 广播更新
+  mpRenderRoster();
+}
+/* 主机：按当前总人数重铺 roster（座位0=主机，其余先 AI，已连客户端保留） */
+function mpHostBuildRoster(n){
+  const old=MP.roster.slice();
+  MP.roster=[];
+  for(let i=0;i<n;i++){
+    if(i===0) MP.roster[i]={ name:MP.lobby.hostName, kind:"host" };
+    else if(old[i] && old[i].kind==="client") MP.roster[i]=old[i];
+    else MP.roster[i]={ name:"AI", kind:"ai" };
+  }
+  mpRenderRoster();
+  MP.transport && MP.transport.send({t:"roster", roster:mpRosterView()});
+}
+async function mpCreateRoom(){
+  const name=($("#mpName").value||"玩家").slice(0,12);
+  mpErr("正在连接 PeerJS 服务器…");
+  let Peer;
+  try{ Peer=await loadPeerJS(); }catch(e){ mpErr(e.message); return; }
+  const code=genRoomCode();
+  let peer;
+  try{ peer=new Peer(ROOM_ID_PREFIX+code); }catch(e){ mpErr("创建失败："+e.message); return; }
+  MP.role="host"; MP.transport=makeHostTransport();
+  MP.lobby={ code, peer, hostName:name };
+  peer.on("open", ()=>{
+    mpErr("");
+    mpCountSel=Math.max(3, mpCountSel);
+    mpHostBuildRoster(mpCountSel);
+    $("#mpHome").style.display="none";
+    $("#mpRoom").style.display="";
+    $("#mpHostCtl").style.display="";
+    $("#mpClientWait").style.display="none";
+    $("#mpRoomCode").textContent=code;
+    $("#mpRoomHint").textContent="把房间号告诉朋友，让他们“加入房间”";
+    mpBuildCountRow();
+  });
+  peer.on("error", e=>{ mpErr("网络/信令错误："+(e&&e.type||e&&e.message||e)); });
+  peer.on("connection", conn=>{
+    conn.on("open", ()=>{ MP.transport.add(conn); });
+    conn.on("data", d=> mpOnMessage(d, conn));
+    conn.on("close", ()=>{
+      MP.transport.remove(conn);
+      const seat=conn.__seat;
+      if(seat!=null){
+        if(MP.active) mpDropSeat(seat);                 // 局中掉线：自动接管
+        else if(MP.roster[seat]){ MP.roster[seat]={name:"AI",kind:"ai"}; mpRenderRoster();
+                                   MP.transport.send({t:"roster", roster:mpRosterView()}); }  // 大厅里退出：座位回收
+      }
+    });
+  });
+}
+function mpToggleJoin(){
+  const box=$("#mpJoinBox");
+  box.style.display = box.style.display==="none"? "" : "none";
+}
+async function mpJoinRoom(){
+  const name=($("#mpName").value||"玩家").slice(0,12);
+  const code=($("#mpCode").value||"").trim().toUpperCase();
+  if(code.length<3){ mpErr("请输入房间号"); return; }
+  mpErr("正在连接 PeerJS 服务器…");
+  let Peer;
+  try{ Peer=await loadPeerJS(); }catch(e){ mpErr(e.message); return; }
+  let peer;
+  try{ peer=new Peer(); }catch(e){ mpErr("连接失败："+e.message); return; }
+  MP.role="client"; MP.lobby={ code, peer, hostName:name };
+  peer.on("open", ()=>{
+    mpErr("正在加入房间…");
+    const conn=peer.connect(ROOM_ID_PREFIX+code, {reliable:true});
+    MP.transport=makeClientTransport(conn);
+    conn.on("open", ()=>{ mpErr(""); conn.send({t:"hello", name}); });
+    conn.on("data", d=> mpOnMessage(d));
+    conn.on("error", e=>{ mpErr("连接房间失败："+(e&&e.type||e)); });
+    conn.on("close", ()=>{ if(!MP.active) mpErr("与房间断开"); });
+    setTimeout(()=>{ if(!conn.open) mpErr("未能连上房间，请核对房间号（或主机尚未就绪）"); }, 6000);
+  });
+  peer.on("error", e=>{ mpErr("信令错误："+(e&&e.type||e)); });
+}
+function mpShowClientWait(){
+  $("#mpHome").style.display="none";
+  $("#mpRoom").style.display="";
+  $("#mpHostCtl").style.display="none";
+  $("#mpClientWait").style.display="";
+  $("#mpRoomCode").textContent=MP.lobby? MP.lobby.code : "";
+  $("#mpRoomHint").textContent="你已入座（座位 "+(MY_SEAT+1)+"），等待主机开始…";
+}
+function mpBuildCountRow(){
+  const row=$("#mpCountRow"); if(!row) return;
+  row.innerHTML="";
+  for(let n=3;n<=8;n++){
+    const b=document.createElement("button");
+    b.className="btn small"+(n===mpCountSel?" sel":""); b.textContent=n;
+    b.onclick=()=>{
+      const joined=MP.roster.filter(r=>r.kind==="client").length+1;
+      if(n<joined){ mpErr("总人数不能少于已入座玩家数（"+joined+"）"); return; }
+      mpErr(""); mpCountSel=n; mpHostBuildRoster(n); mpBuildCountRow();
+    };
+    row.appendChild(b);
+  }
+}
+/* 主机开始对局：定人数与身份、标注人机座位、广播 start，然后运行引擎 */
+function mpHostStart(){
+  const humans=MP.roster.filter(r=>r.kind==="client").length+1;
+  chosenN=mpCountSel;
+  MP.active=true; MP.dropped=new Set(); MP.pending={};
+  MP.transport.send({t:"start"});
+  $("#mpOverlay").classList.remove("on");
+  startGameMP();
+  log(`联机对局开始：${humans} 名真人 + ${chosenN-humans} 名 AI。你是主机（座位 1）。`,"turn");
+}
+/* 客户端进入对局：切到牌桌，等待主机快照 */
+function mpClientEnterGame(){
+  MP.active=true;
+  $("#mpOverlay").classList.remove("on");
+  $("#startScreen").style.display="none";
+  $("#gameScreen").classList.add("on");
+  $("#logBody").innerHTML="";
+  AudioSys.startMusic();
+  setPhase("联机对局","等待主机同步…");
+}
+
 function newGame(n, wantFaction, expansion){
   const ex = (expansion && typeof expansion==="object")? {...expansion} : {weiqing:!!expansion};
   if(ex.heimingdan===undefined) ex.heimingdan=true;   // 黑名單规则默认开启（完整牌库）
@@ -1083,7 +1494,7 @@ function factionBadge(p, forceReveal){
     if(p.faction==="JY" && (p.human||p.revealed||G.over)) t += p.mission? "·"+p.mission.name : "";
     return `<span class="badge ${p.faction}">${t}</span>`;
   }
-  const me=G.players[0];
+  const me=G.players[MY_SEAT];
   const v = me.human? viewOf(me)[p.i] : { hint:null, excluded:[] };
   if(v.hint) return `<span class="badge ${v.hint}">${FACTION_NAME[v.hint]} ✓</span>`;
   if(v.excluded.length)
@@ -1105,8 +1516,8 @@ function render(){
         `<span class="fdot dead"></span>`.repeat(dead)+`</span>`;
   }
   $("#factionBar").innerHTML=fb;
-  const me=G.players[0];
-  if(me.human){
+  const me=G.players[MY_SEAT];
+  if(me.human){promptSeat=me.i;
     let t = `你的身份：${factionBadge(me,true)}`;
     if(me.faction==="JY") t += ` <span class="idtail" style="color:var(--text-dim);font-size:12px">任务：${me.mission.desc}</span>`;
     else t += ` <span class="idtail" style="color:var(--text-dim);font-size:12px">集齐3张${me.faction==="QF"?"红":"蓝"}色情报获胜</span>`;
@@ -1144,10 +1555,11 @@ function render(){
     box.appendChild(d);
   });
   renderHand();
+  mpBroadcast();
 }
 let handClickCb=null, handFilter=null;
 function renderHand(){
-  const me=G.players[0];
+  const me=G.players[MY_SEAT];
   const box=$("#handCards"); box.innerHTML="";
   if(!me.human){ return; }
   me.hand.forEach(c=>{
@@ -1164,6 +1576,11 @@ function renderHand(){
   });
 }
 function pickHandCard(filter){
+  if(mpIsRemoteSeat(promptSeat)){
+    const P=G.players[promptSeat];
+    const ids=P.hand.filter(c=>!filter||filter(c)).map(c=>c.id);
+    return mpRemotePrompt(promptSeat,"hand",{ids, cancellable:false, msg:""}).then(cid=>P.hand.find(c=>c.id===cid));
+  }
   return new Promise(res=>{ handFilter=filter||null; handClickCb=res; renderHand(); });
 }
 function clearHandPick(){ handClickCb=null; handFilter=null; renderHand(); }
@@ -1191,6 +1608,10 @@ async function chooseFnCard(q, fn, actionName){
 /* 点击座位选择目标：高亮候选座位，点击即选；cancelLabel 为 null 时不可取消 */
 let seatPick=null;
 function pickSeat(cands, title, cancelLabel="↩ 取消"){
+  if(mpIsRemoteSeat(promptSeat)){
+    return mpRemotePrompt(promptSeat,"seat",{title, cancelLabel, cands:cands.map(q=>q.i)})
+      .then(si=>si==null?null:G.players[si]);
+  }
   return new Promise(res=>{
     seatPick={ set:new Set(cands.map(q=>q.i)), cb:res };
     const ap=$("#actionPanel"); ap.innerHTML="";
@@ -1210,6 +1631,12 @@ function endSeatPick(){ seatPick=null; clearAsk(); render(); }
 
 /* 可撤回的选牌：显示提示与“取消”按钮，取消时返回 null */
 function pickHandCardCancellable(filter, msg){
+  if(mpIsRemoteSeat(promptSeat)){
+    const P=G.players[promptSeat];
+    const ids=P.hand.filter(c=>!filter||filter(c)).map(c=>c.id);
+    return mpRemotePrompt(promptSeat,"hand",{ids, cancellable:true, msg})
+      .then(cid=>cid==null?null:P.hand.find(c=>c.id===cid));
+  }
   apMsg(msg);
   const cancelBtn=document.createElement("button");
   cancelBtn.className="btn small warn"; cancelBtn.textContent="↩ 取消";
@@ -1230,7 +1657,7 @@ function tendencyOf(t){
   if(dRed && dBlue) return '<span class="tend-none">疑似打酱油（两边都拦）</span>';
   if(dRed)  return '<span class="tend-jq">大概率非潜伏（军情/酱油）</span>';
   if(dBlue) return '<span class="tend-qf">大概率非军情（潜伏/酱油）</span>';
-  const s=beliefQF(G.players[0], t);
+  const s=beliefQF(G.players[MY_SEAT], t);
   if(s>=3) return '<span class="tend-qf">倾向潜伏</span>';
   if(s<=-3) return '<span class="tend-jq">倾向军情</span>';
   return '<span class="tend-none">立场不明</span>';
@@ -1243,7 +1670,7 @@ function seatClueLine(p){
 function cluesFor(t){
   const out=[];
   const nm=i=>G.players[i].name;
-  const mv=G.players[0].human? viewOf(G.players[0])[t.i] : {hint:null,excluded:[]};
+  const mv=G.players[MY_SEAT].human? viewOf(G.players[MY_SEAT])[t.i] : {hint:null,excluded:[]};
   if(mv.hint) out.push({text:`已确认身份：${FACTION_NAME[mv.hint]}（试探/推理）`, strong:true});
   else if(mv.excluded.length) out.push({text:`已排除：${mv.excluded.map(f=>FACTION_NAME[f]).join("、")}`, strong:true});
   for(const e of G.events){
@@ -1275,7 +1702,7 @@ function cluesFor(t){
 }
 function showClues(p){
   if(AUTOTEST) return;
-  if(p.human){
+  if(p.human){promptSeat=p.i;
     $("#clueTitle").textContent="你的身份";
     $("#clueBody").innerHTML=`<div class="clue-item strong">${FACTION_NAME[p.faction]}${p.faction==="JY"?"·"+p.mission.name:""}</div>
       <div class="clue-item">${p.faction==="JY"?p.mission.desc:`集齐三张${p.faction==="QF"?"红":"蓝"}色情报即获胜。`}</div>
@@ -1283,7 +1710,7 @@ function showClues(p){
       <div class="clue-item">角色绝密任务（你为酱油时的胜利条件）：「${missionOfChar(p.char).name}」${missionOfChar(p.char).desc}</div>`;
   } else {
     $("#clueTitle").textContent=`关于 ${p.name} 的情报`;
-    const mv0 = viewOf(G.players[0])[p.i];
+    const mv0 = viewOf(G.players[MY_SEAT])[p.i];
     const knownF = p.revealed? p.faction : mv0.hint;
     const fRow = ["QF","JQ","JY"].map(f=>{
       let cls="fchip";
@@ -1307,6 +1734,11 @@ function showClues(p){
 
 /* 行动面板：给真人玩家的按钮选择 */
 function ask(title, options, sub){
+  if(mpIsRemoteSeat(promptSeat)){
+    return mpRemotePrompt(promptSeat,"ask",{title, sub:sub||"",
+      options:options.map(o=>({label:o.label, warn:!!o.warn, disabled:!!o.disabled}))})
+      .then(idx=>options[idx].value);
+  }
   return new Promise(res=>{
     const ap=$("#actionPanel"); ap.innerHTML="";
     const t=document.createElement("div"); t.className="ap-title"; t.innerHTML=title; ap.appendChild(t);
@@ -1387,7 +1819,7 @@ function publicTellFaction(t){
     if(isJY) knowSlot(o,t.i).hint = "JY";
     else addExclusion(o, t, "JY");
   }
-  const me=G.players[0];
+  const me=G.players[MY_SEAT];
   if(me.human && me!==t && !t.revealed){
     G.humanClues.push({targetI:t.i, text:`第${G.round}轮 公开文本：${t.name} ${isJY?"没有摸牌——是打酱油的！":"摸了一张牌——不是打酱油的"}`});
   }
@@ -1397,7 +1829,7 @@ function addExclusion(me, t, f){
   const k=knowSlot(me,t.i);
   if(k.hint || k.excluded.includes(f)) return;
   k.excluded.push(f);
-  if(me.human){
+  if(me.human){promptSeat=me.i;
     const v=viewOf(me)[t.i];
     if(v.hint) log(`（推理）综合已知信息：${pname(t)} 只能是【${FACTION_NAME[v.hint]}】！`,"warn");
   }
@@ -1554,7 +1986,7 @@ async function doTurn(p){
 
   // 刀锋·亮剑（千智○）：回合开始时，可令任意名玩家处于锁定状态
   if(p.char.key==="o_daofeng" && p.char.qz && alivePlayers().length>1){
-    if(p.human){
+    if(p.human){promptSeat=p.i;
       let guard=0;
       while(guard++<6){
         const cands=alivePlayers().filter(q=>q!==p && !(G.pendingLocks||[]).includes(q.i));
@@ -1594,7 +2026,7 @@ async function doTurn(p){
   let drew=false;
   if(p.char.key==="caifeng" && G.discard.length>=2){
     let use=false, picks=[];
-    if(p.human){
+    if(p.human){promptSeat=p.i;
       use = await ask("技能·量体：改为从弃牌堆挑选两张牌？",
         [{label:"发动（挑两张）",value:true},{label:"正常摸牌",value:false}]);
       if(use){
@@ -1621,7 +2053,7 @@ async function doTurn(p){
   if(isDmn && !p.char.qz && !drew && p.hand.length){
     revealChar(p);
     let back;
-    if(p.human){ apMsg("倾城：摸三张后，选择放回牌库顶的一张手牌…"); back=await pickHandCard(); clearAsk(); }
+    if(p.human){promptSeat=p.i; apMsg("倾城：摸三张后，选择放回牌库顶的一张手牌…"); back=await pickHandCard(); clearAsk(); }
     else back=p.hand.slice().sort((a,b)=>costPreference(p,a)-costPreference(p,b))[0];
     const bi=p.hand.indexOf(back);
     if(bi>=0){ p.hand.splice(bi,1); G.deck.push(back); }
@@ -1677,7 +2109,7 @@ async function playPhase(p, phaseNo){
     const canPlay = p.hand.length>reserve && usableCards.length>0;
     if(!canPlay && !canSkill && !anyCharSkill) break;
 
-    if(p.human){
+    if(p.human){promptSeat=p.i;
       const opts=[];
       if(canPlay) opts.push({label:"使用功能牌（点选手牌）",value:"card"});
       if(canSkill) opts.push({label:"技能·火攻（弃一张牌当烧毁）",value:"skill"});
@@ -2138,7 +2570,7 @@ async function skillShoumai(p, presetTarget, presetCard){
   }
   for(let i=0;i<4 && p.hand.length;i++){
     let c;
-    if(p.human){ apMsg(`收买：选择交给 ${t.name} 的第 ${i+1} 张手牌…`); c=await pickHandCard(); clearAsk(); }
+    if(p.human){promptSeat=p.i; apMsg(`收买：选择交给 ${t.name} 的第 ${i+1} 张手牌…`); c=await pickHandCard(); clearAsk(); }
     else c=p.hand.slice().sort((a,b)=>costPreference(p,a)-costPreference(p,b))[0];
     const idx=p.hand.indexOf(c);
     if(idx>=0){ p.hand.splice(idx,1); t.hand.push(c); }
@@ -2241,7 +2673,7 @@ async function skillHongyan(p, presetTarget, presetCard){
       const more=G.players.filter(q=>q.alive && countColor(q,"black")>0);
       if(!more.length) break;
       let mt=null, mc=null;
-      if(p.human){
+      if(p.human){promptSeat=p.i;
         mt=await pickSeat(more, `爱情：继续烧第 ${i+1} 张黑情报？（取消结束）`, "结束");
         if(!mt) break;
         mc=await chooseBurnCard(mt, true);
@@ -2310,7 +2742,7 @@ async function skillGuiji(p, presetCard){
   if(!cands.length) return;
   let c=presetCard;
   if(!c){
-    if(p.human){
+    if(p.human){promptSeat=p.i;
       c=await ask("诡计：收回哪张情报为手牌？",
         cands.map(x=>({label:cardColorLabel(x)+"情报",value:x})).concat([{label:"↩ 取消",value:null,warn:true}]));
       if(!c) return;
@@ -2494,7 +2926,7 @@ async function counterWindow(user, kind, ctx){
     for(const q of alivePlayers()){
       if(q===lastActor || !q.hand.some(c=>c.fn==="shipo")) continue;
       let use=false;
-      if(q.human){
+      if(q.human){promptSeat=q.i;
         use=await ask(
           `${pname(user)} 的【${FN_NAME[kind]}】${cancelled?"已被识破——再识破可令其恢复生效":"即将生效"}，是否使用【识破】？`,
           [{label:cancelled?"识破（恢复其生效）":"识破（抵销效果）",value:true},{label:"不使用",value:false}]);
@@ -2543,7 +2975,7 @@ async function counterWindow(user, kind, ctx){
     for(const q of alivePlayers()){
       if(q===user || q.char.key!=="q_gangtie" || q.charRevealed) continue;
       let use=false;
-      if(q.human){
+      if(q.human){promptSeat=q.i;
         use=await ask(`${pname(user)} 的【${FN_NAME[kind]}】即将生效——发动【警觉】（翻开角色牌）令其无效？`,
           [{label:"警觉（无效之，不可被识破）",value:true},{label:"不发动",value:false}]);
       } else use = aiWantCounter(q,user,kind,ctx,false) && Math.random()<0.8;
@@ -2565,7 +2997,7 @@ async function counterWindow(user, kind, ctx){
     drawCards(user,kk);
     for(let i=0;i<2 && user.hand.length;i++){
       let c;
-      if(user.human){ apMsg(`藏锋：选择放回牌库顶的第 ${i+1} 张手牌…`); c=await pickHandCard(); clearAsk(); }
+      if(user.human){promptSeat=user.i; apMsg(`藏锋：选择放回牌库顶的第 ${i+1} 张手牌…`); c=await pickHandCard(); clearAsk(); }
       else c=user.hand.slice().sort((a,b)=>costPreference(user,a)-costPreference(user,b))[0];
       const idx=user.hand.indexOf(c);
       if(idx>=0){ user.hand.splice(idx,1); G.deck.push(c); }
@@ -2598,7 +3030,7 @@ function aiWantCounter(q, user, kind, ctx, cancelled){
 
 /* 真伪莫辨（官方）：翻开与存活人数等量的牌，从使用者起按座位序每人轮流选一张收为情报 */
 async function resolveZhenwei(p, card){
-  if(p.human){
+  if(p.human){promptSeat=p.i;
     const go=await ask("使用【真伪莫辨】：拿取与存活人数等量的牌洗匀，从你起逆时针每人随机抽一张作为情报？",
       [{label:"使用",value:true},{label:"↩ 取消",value:null,warn:true}]);
     if(!go) return;
@@ -2633,7 +3065,7 @@ async function resolveBoyi(p, card){
   if(G.deck.length+G.discard.length===0){ log("牌库已空，博弈无法使用。"); return; }
   const cands=alivePlayers();
   let t;
-  if(p.human){
+  if(p.human){promptSeat=p.i;
     t=await pickSeat(cands, "【博弈】：把牌库顶一张牌放到谁面前当情报？", "↩ 取消");
     if(!t) return;
   } else {
@@ -2659,7 +3091,7 @@ async function resolveBoyi(p, card){
 
 /* 权衡：弃掉全部手牌，重新抽取等量 */
 async function resolveQuanheng(p, card){
-  if(p.human){
+  if(p.human){promptSeat=p.i;
     const go=await ask("使用【权衡】：弃掉全部手牌，然后重新抽取等量的牌？",
       [{label:"使用",value:true},{label:"↩ 取消",value:null,warn:true}]);
     if(!go) return;
@@ -2680,7 +3112,7 @@ async function resolveQuanheng(p, card){
 async function resolveZengyuan(p, card){
   const bn=countColor(p,"black");
   if(bn<1){ log("你没有黑色情报，增援无法使用。"); return; }
-  if(p.human){
+  if(p.human){promptSeat=p.i;
     const go=await ask(`使用【增援】：抽 ${bn}+1 = ${bn+1} 张牌？`,
       [{label:"使用",value:true},{label:"↩ 取消",value:null,warn:true}]);
     if(!go) return;
@@ -2765,7 +3197,7 @@ async function resolveWeibi(p, card, presetTarget){
   if(await counterWindow(p,"weibi",{target:t})) return;
   await sleep(400);
   let give;
-  if(t.human){
+  if(t.human){promptSeat=t.i;
     apMsg("你被威逼，选择交出一张手牌…");
     give=await pickHandCard(); clearAsk();
   } else {
@@ -2804,7 +3236,7 @@ async function resolveLiyou(p, card, presetTarget){
   await sleep(500);
   let pick;
   if(!c2) pick=c1;
-  else if(t.human){
+  else if(t.human){promptSeat=t.i;
     pick=await ask("利诱：选择拿走哪张？",[
       {label:`${cardColorLabel(c1)}·${FN_NAME[c1.fn]}`,value:c1},
       {label:`${cardColorLabel(c2)}·${FN_NAME[c2.fn]}`,value:c2}]);
@@ -2863,7 +3295,7 @@ async function burnBlack(actor, t, chosen){
   t.intel.splice(idx,1);
   const c=card;
   G.discard.push(c);
-  log(`${t===G.players[0]&&t.human?"你":t.name} 情报区的一张${cardColorLabel(c)}情报被烧毁。`,"good");
+  log(`${t===G.players[MY_SEAT]&&t.human?"你":t.name} 情报区的一张${cardColorLabel(c)}情报被烧毁。`,"good");
   evt({type:"burn", actor:actor.i, targetI:t.i});
   rep(`${actor.name} 烧毁了 ${actor===t?"自己":t.name} 的黑色情报`,"good");
   actor.burnCount++;
@@ -2878,7 +3310,7 @@ async function resolveShitan(p, card, presetTarget){
   const cands = G.players.filter(q=>q.alive && q!==p);
   let t = presetTarget;
   if(!t){
-    if(p.human){
+    if(p.human){promptSeat=p.i;
       t = await pickSeat(cands, `【试探】（${PROBE_TEXTS[card.probe]}）：选择目标`);
       if(!t) return;                   // 撤回：不弃牌
     } else t = rnd(cands);
@@ -2892,7 +3324,7 @@ async function resolveShitan(p, card, presetTarget){
     const extra = G.players.filter(q=>q.alive && q!==p && q!==t);
     let t2=null;
     if(extra.length){
-      if(p.human){
+      if(p.human){promptSeat=p.i;
         t2 = await pickSeat(extra, "排查：再试探一名额外目标？", "不追加");
       } else {
         const pv2 = viewOf(p);
@@ -2926,7 +3358,7 @@ async function resolveShitan(p, card, presetTarget){
     drawCards(p,2);
     if(p.hand.length){
       let back;
-      if(p.human){ apMsg("隔墙有耳：选择放回牌库顶的一张手牌…"); back=await pickHandCard(); clearAsk(); }
+      if(p.human){promptSeat=p.i; apMsg("隔墙有耳：选择放回牌库顶的一张手牌…"); back=await pickHandCard(); clearAsk(); }
       else back=p.hand.slice().sort((a,b)=>costPreference(p,a)-costPreference(p,b))[0];
       const bi=p.hand.indexOf(back);
       if(bi>=0){ p.hand.splice(bi,1); G.deck.push(back); }
@@ -2973,7 +3405,7 @@ async function probeOne(p, card, t){
   // 千智·老鬼·城府：公开状态下被试探可隐瞒身份（以任选阵营反应，误导试探者）
   let effF = t.faction;
   if(t.char.key==="o_laogui" && t.char.qz && t.charRevealed && t.alive){
-    if(t.human){
+    if(t.human){promptSeat=t.i;
       const f=await ask("技能·城府：以哪种身份反应本次试探？（可隐瞒误导）",[
         {label:"按真实身份",value:null},
         {label:"假装潜伏战线",value:"QF"},{label:"假装军情处",value:"JQ"},{label:"假装打酱油",value:"JY"}]);
@@ -3005,7 +3437,7 @@ async function probeOne(p, card, t){
     if(effF===fac){
       if(t.hand.length){
         let dc;
-        if(t.human){
+        if(t.human){promptSeat=t.i;
           apMsg("你被试探命中，选择弃置一张手牌…");
           dc=await pickHandCard(); clearAsk();
         } else dc = t.hand.find(c=>c.color==="black")||t.hand[0];
@@ -3025,7 +3457,7 @@ async function probeOne(p, card, t){
   if(learn){
     if(learn.hint) knowSlot(p,t.i).hint=learn.hint;
     else addExclusion(p, t, learn.exclude);
-    if(p.human){
+    if(p.human){promptSeat=p.i;
       G.humanClues.push({targetI:t.i, text:`第${G.round}轮 试探${learn.hint?`证实：${FACTION_NAME[learn.hint]}`:`排除：不是${FACTION_NAME[learn.exclude]}`}`});
     }
   }
@@ -3044,7 +3476,7 @@ async function probeOne(p, card, t){
     const blacks=p.hand.filter(c=>cardHasColor(c,"black"));
     if(blacks.length){
       let use=false;
-      if(p.human){
+      if(p.human){promptSeat=p.i;
         use=await ask("技能·咄咄逼人：将至多两张黑色手牌置入其面前？（每局一次）",
           [{label:"发动",value:true},{label:"不发动",value:false}]);
       } else use = aiIsLikelyEnemy(p,t) && countColor(t,"black")+Math.min(2,blacks.length)>=3;
@@ -3063,7 +3495,7 @@ async function probeOne(p, card, t){
   // 六姐·严刑（千智◎）：目标因试探摸/弃牌 → 弃其全部手牌
   if(!G.over && reacted && t.alive && p.char.key==="qz_liujie" && !(p.onceUsed&&p.onceUsed.yanxing)){
     let use=false;
-    if(p.human){
+    if(p.human){promptSeat=p.i;
       use=await ask(`技能·严刑：弃掉 ${t.name} 的全部手牌？（每局一次）`,
         [{label:"发动",value:true},{label:"不发动",value:false}]);
     } else use = aiIsLikelyEnemy(p,t) && t.hand.length>=3 && Math.random()<0.7;
@@ -3084,7 +3516,7 @@ async function probeOne(p, card, t){
 async function sendPhase(p){
   if(p.hand.length===0){ log(`${pname(p)} 没有手牌，无法传递情报。`); return; }
   let card, mode, param={};
-  if(p.human){
+  if(p.human){promptSeat=p.i;
     // 可反悔：确定方向/目标前都能“重新选牌”
     for(;;){
       apMsg("传递情报：点选一张手牌传出（右上角印章决定传递方式）…");
@@ -3245,7 +3677,7 @@ async function runTransit(sender, card, mode, param){
   if(sender.char.key==="o_xueran" && mode==="zhida" && param.target && cardHasColor(card,"black") && param.target.alive
      && !(sender.char.qz && sender.onceUsed && sender.onceUsed.kiss)){
     let kiss;
-    if(sender.human){
+    if(sender.human){promptSeat=sender.i;
       kiss = await ask(`技能·黑色之吻：强制 ${param.target.name} 接收这张黑色情报？（会公开你的角色与牌色）`,
         [{label:"发动（强制接收）",value:true},{label:"不发动",value:false}]);
     } else {
@@ -3388,7 +3820,7 @@ async function announceWindow(sender){
   const tr=G.transit;
   for(const q of seatsFrom(sender,"cw")){
     if(!q.alive) continue;
-    if(q.human){
+    if(q.human){promptSeat=q.i;
       let guard=0;
       while(guard++<4){
         const opts=[];
@@ -3693,7 +4125,7 @@ async function xiangshuiTrigger(p){
   drawCards(p,2);
   if(p.hand.length){
     let c;
-    if(p.human){ apMsg("攻守兼备：选择放回牌库顶的一张手牌…"); c=await pickHandCard(); clearAsk(); }
+    if(p.human){promptSeat=p.i; apMsg("攻守兼备：选择放回牌库顶的一张手牌…"); c=await pickHandCard(); clearAsk(); }
     else c=p.hand.slice().sort((a,b)=>costPreference(p,a)-costPreference(p,b))[0];
     const idx=p.hand.indexOf(c);
     if(idx>=0){ p.hand.splice(idx,1); G.deck.push(c); }
@@ -3729,7 +4161,7 @@ async function lijianWindow(user, t){
     const cands=alivePlayers().filter(x=>x!==user && x!==t);
     if(!cands.length) break;
     let nt=null;
-    if(q.human){
+    if(q.human){promptSeat=q.i;
       const yes=await ask(`${pname(user)} 锁定了 ${pname(t)}——使用【离间】改变锁定目标？`,
         [{label:"离间（改锁定目标）",value:true},{label:"不使用",value:false}]);
       if(yes) nt=await pickSeat(cands,"离间：锁定目标改为谁？（不能是锁定使用者）");
@@ -3759,7 +4191,7 @@ async function lijianWindow(user, t){
 async function laoqiangChenzhuo(t, cause){
   if(!t || t.char.key!=="o_laoqiang" || t.charRevealed || !t.alive) return;
   let use=true;
-  if(t.human){
+  if(t.human){promptSeat=t.i;
     use = await ask(`技能·沉着：你被【${cause}】指定——翻开角色牌，摸两张牌？`,
       [{label:"发动",value:true},{label:"不发动",value:false}]);
   }
@@ -3780,7 +4212,7 @@ async function qibaiShensuan(p){
   const others=alivePlayers().filter(q=>q!==p);
   if(!others.length || !p.hand.length) return;
   let c,t;
-  if(p.human){
+  if(p.human){promptSeat=p.i;
     apMsg("神算：选择交给他人的一张手牌…"); c=await pickHandCard(); clearAsk();
     t=await pickSeat(others,"神算：将这张手牌交给谁？",null);
   } else {
@@ -3803,7 +4235,7 @@ async function tlzfSwap(q){
   let newc=null;
   if(!(q.onceUsed&&q.onceUsed.zbtg) && G.deck.length>=2){
     let useZb=false;
-    if(q.human){
+    if(q.human){promptSeat=q.i;
       useZb=await ask("◎凿壁偷光：先查看牌库顶至多五张并任选其一调换？（每局一次）",
         [{label:"发动凿壁偷光",value:true},{label:"直接与顶牌调换",value:false}]);
     } else useZb = G.deck.length>=3;
@@ -3813,7 +4245,7 @@ async function tlzfSwap(q){
       const top=[];
       for(let i=0;i<n;i++) top.push(G.deck.pop());
       let pick;
-      if(q.human){
+      if(q.human){promptSeat=q.i;
         pick=await ask("凿壁偷光：换入哪张？", top.map(c=>({label:`${cardColorLabel(c)}·${FN_NAME[c.fn]}`,value:c})));
       } else {
         const oc=ownColor(q);
@@ -3855,7 +4287,7 @@ async function chuzhangErmu(){
       }
     }
     let choice=null;
-    if(q.human){
+    if(q.human){promptSeat=q.i;
       const opts=[];
       if(q.hand.length) opts.push({label:"弃一张手牌",value:"discard"});
       if(burnPick) opts.push({label:"烧毁一名玩家的一张非黑色情报",value:"burn"});
@@ -3866,13 +4298,13 @@ async function chuzhangErmu(){
     }
     if(choice==="discard"){
       let dc;
-      if(q.human){ apMsg("耳目：选择弃置一张手牌…"); dc=await pickHandCard(); clearAsk(); }
+      if(q.human){promptSeat=q.i; apMsg("耳目：选择弃置一张手牌…"); dc=await pickHandCard(); clearAsk(); }
       else dc=q.hand.slice().sort((a,b)=>costPreference(q,a)-costPreference(q,b))[0];
       discardFromHand(q,dc);
       log(`${pname(q)} 弃置了一张手牌。`);
     } else if(choice==="burn"){
       let bx=null, bc=null;
-      if(q.human){
+      if(q.human){promptSeat=q.i;
         const cands=alivePlayers().filter(x=>x.intel.some(c=>!cardHasColor(c,"black")));
         bx=await pickSeat(cands,"耳目：烧毁谁的一张非黑色情报？",null);
         const nbs=bx.intel.filter(c=>!cardHasColor(c,"black"));
@@ -3957,7 +4389,7 @@ async function offerAt(q, isZhida){
   let guard=0;
   while(guard++<12){
     const known = knownColorTo(q);
-    if(q.human){
+    if(q.human){promptSeat=q.i;
       const opts=[];
       const canView = !tr.faceUp && !known && !tr.encrypted;
       const hasPoyi = q.hand.some(c=>c.fn==="poyi");
@@ -4272,7 +4704,7 @@ async function interceptWindow(receiver){
     for(const q of others){
       const canJinchan = q.char.key==="o_emeifeng" && !q.charRevealed;
       if(!q.hand.some(c=>c.fn==="jiehuo") && !canJinchan) continue;
-      if(q.human){
+      if(q.human){promptSeat=q.i;
         const known = knownColorTo(q) || (tr.faceUp?tr.card.color:null);
         const opts=[];
         if(!tr.encrypted && q.hand.some(c=>c.fn==="jiehuo")) opts.push({label:"截获！由我收下",value:"card"});
@@ -4307,7 +4739,7 @@ async function interceptWindow(receiver){
         const bc=intercepted.intel.slice().sort((a,b)=>(cardHasColor(b,"black")?0:1)-(cardHasColor(a,"black")?0:1))[
           cur.human?0:0];
         let pick=bc;
-        if(cur.human){
+        if(cur.human){promptSeat=cur.i;
           pick=await ask(`计中计：烧毁 ${intercepted.name} 面前哪张情报？`,
             intercepted.intel.map(c=>({label:cardColorLabel(c)+"情报",value:c})));
         } else {
@@ -4410,7 +4842,7 @@ async function gainIntel(p, card){
   if(cardHasColor(card,"black") && p.char.key==="yaojishi" && p.yjsUses<2 && p.hand.length>=2 && p.alive){
     let use;
     const isMartyr = p.faction==="JY" && p.mission && p.mission.key==="martyr";
-    if(p.human){
+    if(p.human){promptSeat=p.i;
       use = await ask(`技能·解毒：弃两张手牌销毁这张黑色情报？（剩余 ${2-p.yjsUses} 次）`,
         [{label:"发动",value:true},{label:"不发动",value:false}]);
     } else use = !isMartyr && countColor(p,"black")>=2;
@@ -4419,7 +4851,7 @@ async function gainIntel(p, card){
       revealChar(p);
       for(let i=0;i<2;i++){
         let dc;
-        if(p.human){ apMsg(`解毒：选择弃置第 ${i+1} 张手牌…`); dc=await pickHandCard(); clearAsk(); }
+        if(p.human){promptSeat=p.i; apMsg(`解毒：选择弃置第 ${i+1} 张手牌…`); dc=await pickHandCard(); clearAsk(); }
         else dc=p.hand.slice().sort((a,b)=>costPreference(p,a)-costPreference(p,b))[0];
         discardFromHand(p,dc);
       }
@@ -4434,7 +4866,7 @@ async function gainIntel(p, card){
   // 老鬼·迷踪：第二张黑色情报可弃掉（每局一次）
   if(cardHasColor(card,"black") && p.char.key==="laogui" && !p.laoguiUsed && countColor(p,"black")===2){
     let use;
-    if(p.human){
+    if(p.human){promptSeat=p.i;
       use = await ask("技能·迷踪：弃掉这第二张黑色情报并摸一张牌？（每局限一次）",
         [{label:"发动（弃掉黑情报）",value:true},{label:"不发动",value:false}]);
     } else {
@@ -4471,7 +4903,7 @@ async function gainIntel(p, card){
         log(`${pname(p)} 发动【英雄】（获得黑色情报），摸三张牌并放回一张至牌库顶。`,"good");
         drawCards(p,3);
         let back;
-        if(p.human){ apMsg("英雄：选择放回牌库顶的一张手牌…"); back=await pickHandCard(); clearAsk(); }
+        if(p.human){promptSeat=p.i; apMsg("英雄：选择放回牌库顶的一张手牌…"); back=await pickHandCard(); clearAsk(); }
         else back=p.hand.slice().sort((a,b)=>costPreference(p,a)-costPreference(p,b))[0];
         if(back){ const bi=p.hand.indexOf(back); if(bi>=0){ p.hand.splice(bi,1); G.deck.push(back); } }
         render();
@@ -4488,7 +4920,7 @@ async function gainIntel(p, card){
     const blacks=p.hand.filter(c=>cardHasColor(c,"black"));
     if(blacks.length){
       let t=null, bk=null;
-      if(p.human){
+      if(p.human){promptSeat=p.i;
         const use=await ask("英雄本色：将一张黑色手牌置入一名玩家面前？",
           [{label:"发动",value:true},{label:"不发动",value:false}]);
         if(use){
@@ -4522,7 +4954,7 @@ async function gainIntel(p, card){
   if(cardHasColor(card,"black") && p.char.key==="o_laojin" && p.char.qz && p.charRevealed && p.alive
      && countColor(p,"black")<3 && p.hand.some(c=>cardHasColor(c,"black"))){
     let use=false, scatter=[];
-    if(p.human){
+    if(p.human){promptSeat=p.i;
       use=await ask("技能·釜底抽薪：自吞一张黑手牌，再向任意玩家各放一张手牌情报，然后盖伏角色牌？",
         [{label:"发动",value:true},{label:"不发动",value:false}]);
     } else {
@@ -4536,7 +4968,7 @@ async function gainIntel(p, card){
       log(`${pname(p)} 发动【釜底抽薪】——自吞一张黑情报！`,"warn");
       await forceIntel(p, own, null);
       if(p.alive && !G.over){
-        if(p.human){
+        if(p.human){promptSeat=p.i;
           let guard=0;
           while(p.hand.length && guard++<6){
             const c=await pickHandCardCancellable(null,"釜底抽薪：选一张手牌放到某人面前（取消结束）…");
@@ -4565,7 +4997,7 @@ async function gainIntel(p, card){
     const sd=G.players[tr.sender];
     if(sd.alive && sd.i!==p.i && sd.char.key==="q_daili" && sd.hand.some(c=>cardHasColor(c,"black"))){
       let bk=null;
-      if(sd.human){
+      if(sd.human){promptSeat=sd.i;
         const use=await ask(`技能·布网：将一张手牌黑色情报置入 ${p.name} 的情报区？`,
           [{label:"发动（布网）",value:true},{label:"不发动",value:false}]);
         if(use) bk=await pickHandCardCancellable(c=>cardHasColor(c,"black"),"布网：点选一张黑色手牌置入…");
@@ -4588,7 +5020,7 @@ async function gainIntel(p, card){
     const bl=G.players[tr.sender];
     if(bl.alive && bl.char.key==="qz_beleimao" && p.intel.length){
       let pick=null;
-      if(bl.human){
+      if(bl.human){promptSeat=bl.i;
         const use=await ask(`技能·偷天：将 ${pname(p)} 面前的一张情报加入你的手牌？`,
           [{label:"发动",value:true},{label:"不发动",value:false}]);
         if(use) pick=await ask("偷天：拿哪张？", p.intel.map(c=>({label:cardColorLabel(c)+"情报",value:c})));
@@ -4613,7 +5045,7 @@ async function gainIntel(p, card){
     if(bl2.alive && bl2.i!==p.i && bl2.char.key==="qz_beleimao" && !(bl2.onceUsed&&bl2.onceUsed.nizhuan)
        && p.intel.some(c=>!cardHasColor(c,"black"))){
       let pick=null;
-      if(bl2.human){
+      if(bl2.human){promptSeat=bl2.i;
         const use=await ask("技能·逆转：将受牌者一张红/蓝情报移到你的面前？（每局一次）",
           [{label:"发动",value:true},{label:"不发动",value:false}]);
         if(use) pick=await ask("逆转：移哪张？", p.intel.filter(c=>!cardHasColor(c,"black")).map(c=>({label:cardColorLabel(c)+"情报",value:c})));
@@ -4640,7 +5072,7 @@ async function gainIntel(p, card){
       const cands=alivePlayers().filter(x=>x!==gd && x.hand.length>0);
       if(cands.length){
         let t=null;
-        if(gd.human){
+        if(gd.human){promptSeat=gd.i;
           const use=await ask("技能·阴谋：抽取任意一名玩家的一张手牌？",
             [{label:"发动",value:true},{label:"不发动",value:false}]);
           if(use) t=await pickSeat(cands,"阴谋：抽谁的手牌？","放弃");
@@ -4666,7 +5098,7 @@ async function gainIntel(p, card){
       const cands=alivePlayers().filter(x=>x!==p && x.hand.length>0);
       if(cands.length){
         let t=null;
-        if(p.human){
+        if(p.human){promptSeat=p.i;
           const use=await ask("技能·阳谋：检视一名玩家的手牌并随机抽取一张？",
             [{label:"发动",value:true},{label:"不发动",value:false}]);
           if(use) t=await pickSeat(cands,"阳谋：看谁的手牌？","放弃");
@@ -4697,7 +5129,7 @@ async function gainIntel(p, card){
     }
     if(sd.alive && sd.i!==p.i && sd.char.key==="o_shashou" && sd.hand.some(c=>cardHasColor(c,"black"))){
       let bk=null;
-      if(sd.human){
+      if(sd.human){promptSeat=sd.i;
         const use=await ask(`技能·补刀：再将一张手牌黑色情报置入 ${p.name} 的情报区？`,
           [{label:"发动（补刀）",value:true},{label:"不发动",value:false}]);
         if(use){
@@ -4758,7 +5190,7 @@ async function gainIntel(p, card){
       const diff=G.discard.filter(c=>!cardHasColor(c,card.color) && (!card.color2 || !cardHasColor(c,card.color2)));
       if(diff.length){
         let pick=null;
-        if(p.human){
+        if(p.human){promptSeat=p.i;
           const use=await ask("技能·谋里谋：从弃牌堆选一张不同颜色的牌作为你的情报？（每局一次）",
             [{label:"发动",value:true},{label:"不发动",value:false}]);
           if(use) pick=await ask("谋里谋：选哪张？", diff.slice(-10).reverse().map(c=>({label:cardColorLabel(c)+"·"+FN_NAME[c.fn],value:c})));
@@ -4788,7 +5220,7 @@ async function gainIntel(p, card){
   if(cardHasColor(card,"black") && p.char.key==="q_fuermosi" && !p.onceUsed.toutian
      && p.hand.length && p.alive){
     let sub=null;
-    if(p.human){
+    if(p.human){promptSeat=p.i;
       const use=await ask("技能·细节：将一张手牌作为情报放置在自己面前？（每局一次）",
         [{label:"发动",value:true},{label:"不发动",value:false}]);
       if(use) sub=await pickHandCardCancellable(null,"细节：点选置入情报区的手牌…");
@@ -4896,7 +5328,7 @@ async function killPlayer(p, killerI, reason){
     const hero=alivePlayers().find(q=>q!==p && q.char.key==="o_lifu" && !q.revealed);
     if(hero && countColor(p,"black")>=2){
       let use;
-      if(hero.human){
+      if(hero.human){promptSeat=hero.i;
         use=await ask(`技能·救美：亮出你的身份牌，烧毁 ${p.name} 两张黑色情报将其救活？`,
           [{label:"发动（英雄救美）",value:true},{label:"见死不救",value:false}]);
       } else use = aiIsLikelyAlly(hero,p) || hero.faction==="JY";
@@ -4934,7 +5366,7 @@ async function killPlayer(p, killerI, reason){
   const xs=alivePlayers().find(q=>q!==p && q.char.key==="q_xiangshui" && q.char.qz);
   if(xs){
     let use=false;
-    if(xs.human){
+    if(xs.human){promptSeat=xs.i;
       use=await ask(`技能·临危受命：将你的身份牌移出游戏，接过 ${p.name} 的身份【？】？（其身份将不公开）`,
         [{label:"发动（接身份）",value:true},{label:"不发动",value:false}]);
     } else use = (p.faction==="QF"||p.faction==="JQ") && xs.faction==="JY" && Math.random()<0.6;
@@ -4965,7 +5397,7 @@ async function killPlayer(p, killerI, reason){
     const targets=alivePlayers().filter(q=>q!==p);
     let gift=null, t=null;
     if(nb.length && targets.length){
-      if(p.human){
+      if(p.human){promptSeat=p.i;
         const use = await ask("技能·遗言：把一张非黑色情报移交给一名玩家？",
           [{label:"发动",value:true},{label:"放弃",value:false}]);
         if(use){
@@ -4993,7 +5425,7 @@ async function killPlayer(p, killerI, reason){
     const viewCands=alivePlayers().filter(q=>q!==p && q.hand.length>0);
     if(viewCands.length){
       let v=null, pick=null, dest=null;
-      if(p.human){
+      if(p.human){promptSeat=p.i;
         v=await pickSeat(viewCands,"后着：检视谁的手牌？","放弃");
         if(v){
           pick=await ask(`后着：${v.name} 的手牌——选一张作为情报：`,
@@ -5019,7 +5451,7 @@ async function killPlayer(p, killerI, reason){
           const peekCands=G.players.filter(q=>q.alive && q!==v && q.hand.length>0);
           if(peekCands.length){
             let pk=null;
-            if(p.human){
+            if(p.human){promptSeat=p.i;
               const use=await ask("技能·部属：额外检视另一名玩家的全部手牌？（每局一次）",
                 [{label:"发动",value:true},{label:"不发动",value:false}]);
               if(use) pk=await pickSeat(peekCands,"部属：检视谁的手牌？","放弃");
@@ -5030,7 +5462,7 @@ async function killPlayer(p, killerI, reason){
               p.onceUsed=p.onceUsed||{}; p.onceUsed.bushu=true;
               log(`${pname(p)} 发动【部属】，额外检视了 ${pname(pk)} 的手牌。`,"hl");
               rep(`${p.name} 部属：检视 ${pk.name} 手牌`);
-              if(p.human){
+              if(p.human){promptSeat=p.i;
                 const list=pk.hand.map(c=>cardColorLabel(c)+"·"+FN_NAME[c.fn]).join("、")||"（无手牌）";
                 log(`〔仅你可见〕${pk.name} 的手牌：${list}`,"hl");
                 G.humanClues.push({targetI:pk.i, text:`第${G.round}轮 部属看牌：${list}`});
@@ -5047,7 +5479,7 @@ async function killPlayer(p, killerI, reason){
     const targets=alivePlayers().filter(q=>q!==p);
     let t=null, picks=[];
     if(targets.length){
-      if(p.human){
+      if(p.human){promptSeat=p.i;
         t=await pickSeat(targets,"遗志：将至多两张手牌作为情报放在谁面前？","放弃");
         if(t){
           for(let i=0;i<2 && p.hand.length;i++){
@@ -5078,7 +5510,7 @@ async function killPlayer(p, killerI, reason){
     const targets=alivePlayers().filter(q=>q!==p);
     let t=null;
     if(targets.length){
-      if(p.human){
+      if(p.human){promptSeat=p.i;
         t=await pickSeat(targets,"遗志：将全部手牌交给谁（其随机抽三张作为情报）？","放弃");
       } else {
         const blacks=p.hand.filter(c=>cardHasColor(c,"black")).length;
@@ -5130,7 +5562,7 @@ async function killPlayer(p, killerI, reason){
         }
         if(dest && q.hand.length){
           let c;
-          if(q.human){ apMsg(`${q.char.qz?"嗜血":"收割"}：选择交出的一张手牌…`); c=await pickHandCard(); clearAsk(); }
+          if(q.human){promptSeat=q.i; apMsg(`${q.char.qz?"嗜血":"收割"}：选择交出的一张手牌…`); c=await pickHandCard(); clearAsk(); }
           else c=q.hand.slice().sort((a,b)=>costPreference(q,a)-costPreference(q,b))[0];
           const idx=q.hand.indexOf(c);
           if(idx>=0){ q.hand.splice(idx,1); dest.hand.push(c); checkHandMissions(dest); }
@@ -5147,7 +5579,7 @@ async function killPlayer(p, killerI, reason){
       const blacks=q.hand.filter(c=>cardHasColor(c,"black"));
       if(!blacks.length) continue;
       let t=null;
-      if(q.human){
+      if(q.human){promptSeat=q.i;
         const use=await ask("技能·黄雀在后：将至多两张黑色手牌置入一名玩家面前？",
           [{label:"发动",value:true},{label:"不发动",value:false}]);
         if(use) t=await pickSeat(alivePlayers().filter(x=>x!==q),"黄雀在后：黑色情报塞给谁？","放弃");
@@ -5174,7 +5606,7 @@ async function killPlayer(p, killerI, reason){
     const cands=alivePlayers().filter(q=>q!==p && q.hand.length>0);
     let t=null;
     if(cands.length){
-      if(p.human){
+      if(p.human){promptSeat=p.i;
         t=await pickSeat(cands, "清账：指定谁弃置两张手牌？", "放弃");
       } else {
         t=cands.slice().sort((a,b)=>hostility(b,p)-hostility(a,p))[0];
@@ -5185,7 +5617,7 @@ async function killPlayer(p, killerI, reason){
       rep(`${p.name} 清账 → ${t.name} 弃两张手牌`);
       for(let i=0;i<2 && t.hand.length;i++){
         let dc;
-        if(t.human){ apMsg(`清账：选择弃置第 ${i+1} 张手牌…`); dc=await pickHandCard(); clearAsk(); }
+        if(t.human){promptSeat=t.i; apMsg(`清账：选择弃置第 ${i+1} 张手牌…`); dc=await pickHandCard(); clearAsk(); }
         else dc=t.hand.slice().sort((a,b)=>costPreference(t,a)-costPreference(t,b))[0];
         discardFromHand(t,dc);
       }
@@ -5215,7 +5647,7 @@ async function killPlayer(p, killerI, reason){
     const lj=alivePlayers().find(q=>q!==p && q.char.key==="qz_liujie");
     if(lj){
       let pick=null, asIntel=false;
-      if(lj.human){
+      if(lj.human){promptSeat=lj.i;
         const use=await ask(`技能·搜取：检视 ${p.name} 的手牌并取一张？`,
           [{label:"发动",value:true},{label:"不发动",value:false}]);
         if(use){
@@ -5245,7 +5677,7 @@ async function killPlayer(p, killerI, reason){
   G.discard.push(...p.hand.splice(0), ...p.intel.splice(0));
   render();
   await sleep(700);
-  if(p.human){ apMsg("你已出局……以观战视角看完这一局。"); }
+  if(p.human){promptSeat=p.i; apMsg("你已出局……以观战视角看完这一局。"); }
   // 击杀类任务：职业操守 / 灭口 / 猎杀行动
   if(!G.over && killerI!=null){
     const killer=G.players[killerI];
@@ -5346,7 +5778,7 @@ function endGame(winners, text){
   sfx(winners.length? "win" : "death");
   log(`◆ ${text}`,"turn");
   hideToken(); clearAsk(); render();
-  const me=G.players[0];
+  const me=G.players[MY_SEAT];
   const meWin = winners.includes(me);
   if(!AUTOTEST && me.human) recordStats(meWin, me.faction);
   $("#overTitle").textContent = winners.length===0? "无人生还" : (me.human ? (meWin?"你赢了":"你输了") : "对局结束");
@@ -5529,6 +5961,12 @@ function initStart(){
   $("#btnHelp0").onclick=()=>$("#helpOverlay").classList.add("on");
   $("#btnHelp").onclick=()=>$("#helpOverlay").classList.add("on");
   $("#btnHelpClose").onclick=()=>$("#helpOverlay").classList.remove("on");
+  $("#btnMp").onclick=mpOpenLobby;
+  $("#mpBack").onclick=mpCloseLobby;
+  $("#mpCreate").onclick=mpCreateRoom;
+  $("#mpJoinToggle").onclick=mpToggleJoin;
+  $("#mpJoin").onclick=mpJoinRoom;
+  $("#mpStart").onclick=mpHostStart;
   $("#btnWiki0").onclick=openWiki;
   $("#btnWiki").onclick=openWiki;
   $("#btnWikiClose").onclick=()=>$("#wikiOverlay").classList.remove("on");
@@ -5586,9 +6024,9 @@ function resumeGame(snap){
   $("#logBody").innerHTML="";
   $("#myIdentity").innerHTML="";
   restoreGame(snap);
-  const me=G.players[0];
+  const me=G.players[MY_SEAT];
   log(`—— 存档已恢复：第 ${G.round} 轮，${G.n} 人局 ——`,"turn");
-  if(me.human){
+  if(me.human){promptSeat=me.i;
     let t=`你是【${FACTION_NAME[me.faction]}】`;
     if(me.faction==="JY") t+=`，机密任务：${me.mission.desc}`;
     t+=`，角色：${me.char.name}。`;
@@ -5605,8 +6043,8 @@ function startGame(){
   $("#logBody").innerHTML="";
   $("#myIdentity").innerHTML="";
   newGame(chosenN, AUTOTEST? null : chosenFaction, {...chosenExp});
-  const me=G.players[0];
-  if(me.human){
+  const me=G.players[MY_SEAT];
+  if(me.human){promptSeat=me.i;
     let t=`本局你是【${FACTION_NAME[me.faction]}】`;
     if(me.faction==="JY") t+=`，机密任务：${me.mission.desc}`;
     else t+=`，目标：集齐三张${me.faction==="QF"?"红":"蓝"}色情报（小心三张黑色会送命）。`;
@@ -5617,6 +6055,28 @@ function startGame(){
       log(`耳目密报：${t.name} 的身份是【${FACTION_NAME[me.privateHint.faction]}】。`,"warn");
     }
   }
+  runGame();
+}
+
+/* 联机主机开局：与 startGame 类似，但按大厅名单标注人机座位、MY_SEAT 恒为 0（主机） */
+function startGameMP(){
+  GEN++;
+  AudioSys.startMusic();
+  sfx("shuffle");
+  $("#startScreen").style.display="none";
+  $("#gameScreen").classList.add("on");
+  $("#logBody").innerHTML="";
+  $("#myIdentity").innerHTML="";
+  MY_SEAT=0;
+  newGame(chosenN, null, {...chosenExp});
+  G.players.forEach((p,i)=>{ p.human = (MP.roster[i] && (MP.roster[i].kind==="host"||MP.roster[i].kind==="client")); });
+  const me=G.players[MY_SEAT];
+  promptSeat=me.i;
+  let t=`本局你是【${FACTION_NAME[me.faction]}】`;
+  if(me.faction==="JY") t+=`，机密任务：${me.mission.desc}`;
+  else t+=`，目标：集齐三张${me.faction==="QF"?"红":"蓝"}色情报（小心三张黑色会送命）。`;
+  log(t,"turn");
+  log(`你的代号是「${me.name}」，角色：${me.char.name}${me.char.covert?"（暗置——技能首次触发时才会公开）":""}——${me.char.skill}`);
   runGame();
 }
 
