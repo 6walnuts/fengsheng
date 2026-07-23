@@ -530,7 +530,7 @@ const QIANZHI_CHARS = [
   { key:"o_laogui",   qz:true, name:"老鬼",     gender:"F", covert:true, missionKey:"redhand",
     skill:"●就计：你被【试探】或【锁定】时，可翻开此牌摸两张牌。○城府：你被【试探】时可以隐瞒身份（任选反应误导对方）。○遗志：你死亡时，可将至多两张手牌作为情报放置在一名玩家面前。◎牺牲：将一张黑色手牌置入你的情报区，然后摸一张牌。" },
   { key:"qz_fuping",  qz:true, name:"浮萍",     gender:"F", covert:true, missionKey:"die2nd",
-    skill:"●先机：翻开此牌：抽取另一名玩家至多三张手牌，然后其摸一张牌。○后着：你死亡时，可检视一名玩家的手牌，将其中一张作为情报放置在任意玩家面前。" },
+    skill:"●先机：翻开此牌：抽取另一名玩家至多三张手牌，然后其摸一张牌。○后着：你死亡时，可检视一名玩家的手牌，将其中一张作为情报放置在任意玩家面前。◎部属：使用【后着】时，先额外检视任意一名玩家的手牌（每局一次）。" },
   { key:"o_laoqiang", qz:true, name:"老枪",     gender:"M", covert:true, missionKey:"red3",
     skill:"●就计：你被【试探】或【锁定】时，可翻开此牌摸两张牌。○合谋：盖伏此角色牌并与另一名玩家互看身份牌；若其为已翻开的潜伏角色，你可将一张黑色手牌置入自己情报区并将其角色盖伏。◎摊牌：翻开你的身份牌，同时翻开另一名玩家的身份牌。" },
   { key:"qz_shanling",qz:true, name:"闪灵",     gender:"F", covert:true, missionKey:"killclean",
@@ -5014,6 +5014,31 @@ async function killPlayer(p, killerI, reason){
         rep(`${p.name} 后着：${v.name} 的一张手牌成为 ${dest.name} 的情报`,"warn");
         await forceIntel(dest, pick, null);
         render();
+        // ◎部属：成功触发后着时，可额外检视任意一名玩家的手牌（每局一次）
+        if(!(p.onceUsed&&p.onceUsed.bushu)){
+          const peekCands=G.players.filter(q=>q.alive && q!==v && q.hand.length>0);
+          if(peekCands.length){
+            let pk=null;
+            if(p.human){
+              const use=await ask("技能·部属：额外检视另一名玩家的全部手牌？（每局一次）",
+                [{label:"发动",value:true},{label:"不发动",value:false}]);
+              if(use) pk=await pickSeat(peekCands,"部属：检视谁的手牌？","放弃");
+            } else {
+              pk=peekCands.filter(q=>aiIsLikelyEnemy(p,q))[0]||peekCands[0];
+            }
+            if(pk){
+              p.onceUsed=p.onceUsed||{}; p.onceUsed.bushu=true;
+              log(`${pname(p)} 发动【部属】，额外检视了 ${pname(pk)} 的手牌。`,"hl");
+              rep(`${p.name} 部属：检视 ${pk.name} 手牌`);
+              if(p.human){
+                const list=pk.hand.map(c=>cardColorLabel(c)+"·"+FN_NAME[c.fn]).join("、")||"（无手牌）";
+                log(`〔仅你可见〕${pk.name} 的手牌：${list}`,"hl");
+                G.humanClues.push({targetI:pk.i, text:`第${G.round}轮 部属看牌：${list}`});
+              }
+              render();
+            }
+          }
+        }
       }
     }
   }
