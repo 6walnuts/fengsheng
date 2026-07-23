@@ -1227,7 +1227,7 @@ const scenarios = [
              got: { excluded: prober.know[t.i].excluded } };
   }],
 
-  ['真伪莫辨（官方）：使用者先选，AI 优先挑本方颜色', async () => {
+  ['真伪莫辨（官方）：洗匀后每名存活玩家随机抽一张，守恒', async () => {
     G.players.forEach(p => { p.human = false; p.hand = p.hand.filter(c => c.fn !== "shipo" ? true : (G.discard.push(c), false)); });
     const p = G.players[1];
     p.faction = "QF"; p.mission = null;
@@ -1236,14 +1236,18 @@ const scenarios = [
     const n = alivePlayers().length;
     for (let i = 0; i < n; i++) {
       const c = G.deck[G.deck.length - 1 - i];
-      c.color = i === 0 ? "red" : "blue"; c.color2 = undefined;   // 顶部 1红5蓝
+      c.color = i === 0 ? "red" : "blue"; c.color2 = undefined;
     }
     const before = G.players.map(q => q.intel.length);
+    const deckBefore = G.deck.length;
     await resolveZhenwei(p, zw);
     const cs = cardCensus();
+    const totalGained = G.players.reduce((a, q, i) => a + (q.intel.length - before[i]), 0);
     const allGot = G.players.every((q, i) => !q.alive || q.intel.length - before[i] >= 1 || G.over);
-    return { ok: countColor(p, "red") === 1 && allGot && cs.total === cs.expect && cs.dup === 0,
-             got: { pRed: countColor(p, "red"), allGot, census: cs } };
+    // 每名存活玩家随机抽一张：共发出 n 张（守恒），非"使用者必得红"
+    return { ok: allGot && totalGained === n && G.deck.length === deckBefore - n
+              && cs.total === cs.expect && cs.dup === 0,
+             got: { totalGained, alive: n, allGot, census: cs } };
   }],
 
   ['阵营全灭：唯一潜伏出局 → 军情处全体获胜', async () => {

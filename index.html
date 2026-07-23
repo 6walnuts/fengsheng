@@ -2599,12 +2599,12 @@ function aiWantCounter(q, user, kind, ctx, cancelled){
 /* 真伪莫辨（官方）：翻开与存活人数等量的牌，从使用者起按座位序每人轮流选一张收为情报 */
 async function resolveZhenwei(p, card){
   if(p.human){
-    const go=await ask("使用【真伪莫辨】：翻开与存活人数等量的牌，从你开始每人轮流挑一张收为情报？",
+    const go=await ask("使用【真伪莫辨】：拿取与存活人数等量的牌洗匀，从你起逆时针每人随机抽一张作为情报？",
       [{label:"使用",value:true},{label:"↩ 取消",value:null,warn:true}]);
     if(!go) return;
   }
   discardFromHand(p,card);
-  log(`${pname(p)} 使用【真伪莫辨】——将翻开与存活人数等量的情报，从其开始轮流挑选！`,"warn");
+  log(`${pname(p)} 使用【真伪莫辨】——拿取与存活人数等量的牌洗匀，从其起逆时针每人随机抽一张作为情报！`,"warn");
   sfx("shuffle");
   evt({type:"zhenwei", actor:p.i});
   rep(`${p.name} 真伪莫辨`,"warn");
@@ -2616,20 +2616,13 @@ async function resolveZhenwei(p, card){
     const c=drawTop();
     if(c) pool.push(c);
   }
-  log(`翻开牌库顶：${pool.map(c=>cardColorLabel(c)).join("、")}。`,"hl");
+  shuffle(pool);   // 官方：洗匀后随机抽取（面朝下，不可挑选）
   for(const q of order){
     if(G.over){ break; }
     if(!q.alive || !pool.length) continue;
-    let pick;
-    if(q.human){
-      pick=await ask("真伪莫辨：轮到你挑选一张收为情报（必须接收）：",
-        pool.map(c=>({label:`${cardColorLabel(c)}·${MARK_NAME[c.mark]}·${FN_NAME[c.fn]}`,value:c})));
-    } else {
-      pick=aiZhenweiPick(q,pool);
-    }
-    pool.splice(pool.indexOf(pick),1);
-    log(`${pname(q)} 选走一张 ${colorSpanCard(pick)}，收入情报区。`, cardHasColor(pick,"black")?"warn":"hl");
-    rep(`真伪莫辨 → ${q.name} 选走 ${cardColorLabel(pick)}情报`, cardHasColor(pick,"black")?"warn":"");
+    const pick=pool.pop();   // 随机抽一张
+    log(`${pname(q)} 随机抽到一张 ${colorSpanCard(pick)}，收入情报区。`, cardHasColor(pick,"black")?"warn":"hl");
+    rep(`真伪莫辨 → ${q.name} 抽到 ${cardColorLabel(pick)}情报`, cardHasColor(pick,"black")?"warn":"");
     await gainIntel(q, pick);
     render(); await sleep(300);
   }
