@@ -900,22 +900,26 @@ const scenarios = [
              got: { hand: p.hand.length, expect: before + 2, census: cs } };
   }],
 
-  ['调包（官方·面朝上）：换入牌公开，原情报弃入弃牌堆，全场可见', async () => {
+  ['调包（卡面·替换）：调包牌面朝上换入，原情报收入调包者手牌', async () => {
     newGame(6);
     G.players.forEach(p => p.human = false);
     const q = G.players[2];
     const black = G.deck.pop(); black.color = "black"; black.color2 = undefined;
     const db = G.deck.pop(); db.fn = "diaobao"; db.color = "blue"; db.color2 = undefined;
     q.hand.push(db);
+    const handBefore = q.hand.length;
     G.transit = { id: 99, card: black, sender: 1, mode: "midian", dir: "cw", faceUp: false,
                   pos: q.i, knownTo: new Set([1]), locked: new Set(), banned: new Set(),
                   offers: 0, tamperedBy: null };
     await doDiaobao(q, db);
     const tr = G.transit;
+    // 调包牌换入传递并公开；原黑情报进调包者手牌（不进弃牌堆）；手牌数不变（-调包牌 +原情报）
     const ok = tr.card === db && tr.faceUp === true && tr.tamperedBy === q.i
-      && G.discard.includes(black) && !q.hand.includes(db);
+      && q.hand.includes(black) && !q.hand.includes(db) && !G.discard.includes(black)
+      && q.hand.length === handBefore;
     G.discard.push(tr.card); G.transit = null;
-    return { ok, got: { faceUp: tr.faceUp, oldDiscarded: G.discard.includes(black) } };
+    return { ok, got: { faceUp: tr.faceUp, origInHand: q.hand.includes(black),
+                        origInDiscard: G.discard.includes(black), handDelta: q.hand.length - handBefore } };
   }],
 
   ['千智人物池：维基表格25人（潜伏10+公开15），任务/明暗置对表', async () => {

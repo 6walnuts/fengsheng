@@ -387,7 +387,7 @@
        <b class="rule-k">文本</b>：面朝上，同样依次传递。<br>
        若无人接收，情报回到传出者面前，由传出者收下。</p>
     <p><b class="rule-k">回合流程</b>：摸两张牌 → <b>出牌阶段（一）</b> → 传递情报 → <b>出牌阶段（二）</b>。传递分三个窗口：<b>宣告时</b>可用【锁定】【调虎离山】【截获】；<b>到达某人面前时</b>可用【破译】【转移】【调包】；<b>决定接收时</b>不能再用任何牌。</p>
-    <p><b class="rule-k">功能牌</b>：<b>锁定</b>——指定一名玩家，其必须接收本次情报（出牌阶段一或宣告时使用，优先于调虎离山）；<b>调虎离山</b>——指定一名玩家，其不能接收本次情报；<b>转移</b>——情报到你面前时移交给另一名玩家，其如同被锁定必须接收；<b>截获</b>——宣告时直接拉走情报，或他人即将收下时抢走；<b>破译</b>——先猜颜色再查看面朝下的情报，猜中可公开并摸一张；<b>调包</b>——把此调包牌面朝上换入传递替换原情报，原情报弃入弃牌堆，传递方式不变；<b>博弈</b>——出牌阶段把牌库顶一张放到某人面前成情报；<b>权衡</b>——弃光手牌重抽等量；<b>增援</b>——有黑情报时抽「黑情报数+1」张；<b>烧毁</b>——烧掉任意玩家一张黑色情报；<b>试探</b>——目标按真实身份执行牌上指令（结果仅双方可见）；<b>真伪莫辨</b>——拿等量牌洗匀，从使用者起每人随机抽一张作为情报；<b>识破</b>——抵销最新一张功能牌的效果，识破亦可被识破（连锁）。情报传递本身、传递方式与角色技能不可被识破；<b>平信</b>——无功能。</p>
+    <p><b class="rule-k">功能牌</b>：<b>锁定</b>——指定一名玩家，其必须接收本次情报（出牌阶段一或宣告时使用，优先于调虎离山）；<b>调虎离山</b>——指定一名玩家，其不能接收本次情报；<b>转移</b>——情报到你面前时移交给另一名玩家，其如同被锁定必须接收；<b>截获</b>——宣告时直接拉走情报，或他人即将收下时抢走；<b>破译</b>——先猜颜色再查看面朝下的情报，猜中可公开并摸一张；<b>调包</b>——把此调包牌面朝上换入传递、与原情报替换，原情报收入你的手牌，传递方式不变；<b>博弈</b>——出牌阶段把牌库顶一张放到某人面前成情报；<b>权衡</b>——弃光手牌重抽等量；<b>增援</b>——有黑情报时抽「黑情报数+1」张；<b>烧毁</b>——烧掉任意玩家一张黑色情报；<b>试探</b>——目标按真实身份执行牌上指令（结果仅双方可见）；<b>真伪莫辨</b>——拿等量牌洗匀，从使用者起每人随机抽一张作为情报；<b>识破</b>——抵销最新一张功能牌的效果，识破亦可被识破（连锁）。情报传递本身、传递方式与角色技能不可被识破；<b>平信</b>——无功能。</p>
     <p><b class="rule-k">绝密任务</b>：任务印在角色牌上——你的身份是打酱油时，胜利条件就是你角色自带的绝密任务。</p>
     <p><b class="rule-k">黑名单规则</b>（默认开启，可关）：锁定/调虎离山/退回/识破/真伪莫辨五种功能牌、双色情报、传递宣告窗口与出牌阶段（二）均属黑名单版内容；关闭后为经典简化规则（81 张纯色牌库）。</p>
     <p><b class="rule-k">双色情报</b>（黑名单牌）：红黑×3、蓝黑×3，同时计入两种颜色——红黑既算红也算黑；同时凑满制胜与三张黑时<b>先判死亡</b>。</p>
@@ -450,7 +450,7 @@ const FN_DESC    = {
   suoding:"指定一名玩家，其必须接收本次情报",
   diaohu:"指定一名玩家，其不能接收本次情报",
   tuihui:"情报到你面前时，反方向继续传递",
-  diaobao:"把此调包牌面朝上换入传递替换原情报，原情报弃入弃牌堆，传递方式不变",
+  diaobao:"把此调包牌面朝上换入传递、与原情报替换，原情报收入你的手牌，传递方式不变",
   shaohui:"烧掉任一玩家的一张黑色情报",
   shitan:"令一名玩家按真实身份行动",
   zhenwei:"翻开与存活人数等量的牌库牌，从你起每人轮流选一张收为情报",
@@ -3657,7 +3657,7 @@ async function aiOfferLocked(q){
       await sleep(300);
     }
   }
-  // 已知是黑牌且有非黑调包牌 → 把黑牌换下弃掉，自己收下换入的调包牌
+  // 已知是黑牌且有非黑调包牌 → 与黑牌替换（黑牌换入手牌，无害），送出调包牌
   const kc=knownCardTo(q);
   if(kc && cardHasColor(kc,"black")){
     const oc2=ownColor(q);
@@ -4031,7 +4031,7 @@ async function offerAt(q, isZhida){
       if(act==="diaobao"){
         const dc=await chooseFnCard(q,"diaobao","调包");
         if(!dc) continue;
-        const go=await ask(`调包：将这张${cardColorLabel(dc)}【调包】牌面朝上换入传递替换原情报，原情报弃入弃牌堆？`,
+        const go=await ask(`调包：将这张${cardColorLabel(dc)}【调包】牌面朝上换入传递，与原情报替换（原情报收入你手牌）？`,
           [{label:"调包",value:true},{label:"↩ 取消",value:null,warn:true}]);
         if(!go) continue;
         await doDiaobao(q, dc);
@@ -4088,14 +4088,15 @@ async function doDiaobao(q, dbCard){
   const old=tr.card;
   const idx=q.hand.indexOf(dbCard);
   if(idx>=0) q.hand.splice(idx,1);   // 调包牌本身换入传递
-  G.discard.push(old);               // 原情报弃入弃牌堆（弃牌堆公开）
+  q.hand.push(old);                  // 卡面「替换」：原情报换入调包者手牌
+  checkHandMissions(q);
   tr.card=dbCard;
-  tr.faceUp=true;                    // 官方：调包牌以面朝上方式展示，传递方法不变
+  tr.faceUp=true;                    // 调包牌以面朝上方式展示，传递方法不变
   tr.knownTo=new Set(G.players.filter(x=>x.alive).map(x=>x.i));
   tr.tamperedBy=q.i;
-  log(`${pname(q)} 使用【调包】——原情报（${colorSpanCard(old)}）被换下弃入弃牌堆，换入并公开一张 ${colorSpanCard(dbCard)} 继续传递！`,"warn");
+  log(`${pname(q)} 使用【调包】——与传递中的情报（${colorSpanCard(old)}）替换：原情报收入其手牌，换入并公开一张 ${colorSpanCard(dbCard)} 继续传递！`,"warn");
   evt({type:"diaobao", actor:q.i, color:evtColor(old)});
-  rep(`${q.name} 调包：${cardColorLabel(old)} 弃掉，换入自己的${cardColorLabel(dbCard)}牌`,"warn");
+  rep(`${q.name} 调包：换走${cardColorLabel(old)}情报收入手牌，换入自己的${cardColorLabel(dbCard)}牌`,"warn");
   wuzhiguoTrigger(q.i, "调包");
   // 峨嵋峰·计中计（千智○）：传到面前的情报被调包
   const atP=G.players[tr.pos];
