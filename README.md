@@ -191,3 +191,10 @@
 - [George 玩桌游：風聲·黑名單 人物篇](https://georgeplay.blogspot.com/2016/03/2.html)（考据人物出处）
 - [George 玩桌游：風聲·黑名單 流程、功能牌篇](https://georgeplay.blogspot.com/2016/03/blog-post_21.html)（考据功能牌出处）
 - [千智风声 - 维基百科](https://zh.wikipedia.org/wiki/%E5%8D%83%E6%99%BA%E9%A3%8E%E5%A3%B0)（千智新版牌库构成与新版人物谱系出处）
+
+## 子项目：voice-clone（录你的声音，训练你自己的中文语音模型）
+
+与桌游无关的独立小工具链，位于 [`voice-clone/`](voice-clone/)：生成朗读句子 →
+浏览器逐句录音 → 导出为 GPT-SoVITS 等开源声音克隆项目可直接用的训练集 →
+微调后用任意文本合成你的声音。零第三方依赖（纯浏览器 + Python 标准库），
+详见 [voice-clone/README.md](voice-clone/README.md)。
